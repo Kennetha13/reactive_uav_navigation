@@ -11,6 +11,7 @@ find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 add_executable(reactive_navigator_node 
   src/reactive_navigator_node.cpp
