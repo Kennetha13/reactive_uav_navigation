@@ -18,6 +18,7 @@ class DroneState : public rclcpp::Node{ // Inherits from ROS 2 Node
             double get_roll() const; // Latest roll angle in radians
             double get_pitch() const; // Latest pitch angle in radians
             double get_yaw() const; // Latest yaw angle in radians
+            bool has_odometry() const; // Checks if at least one odometry message has been recieved
 
     private:
 
@@ -31,6 +32,8 @@ class DroneState : public rclcpp::Node{ // Inherits from ROS 2 Node
             double roll_{0.0};
             double pitch_{0.0};
             double yaw_{0.0};
+
+            bool has_odometry_{false};
 
             mutable std::mutex state_mutex_;
 };

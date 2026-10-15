@@ -22,7 +22,7 @@ float quaternion_to_yaw(float x, float y, float z, float w){
 
 // Constructor, calls the constructor of the base class Node
 DroneState::DroneState():Node("drone_state_node"){
-    auto odometry_qos = rclcpp::SensorDataQoS();// Keeps the 10 most recent odometry messages
+    auto odometry_qos = rclcpp::SensorDataQoS();
 
     odometry_subscription_= this->create_subscription<nav_msgs::msg::Odometry>("/mavros/local_position/odom", odometry_qos, std::bind(&DroneState::odometry_listener, this, std::placeholders::_1)); // Subscribes to ROS 2 topic odometry
 
@@ -59,6 +59,12 @@ double DroneState::get_yaw() const{ // Returns yaw in radians
     return yaw_;
 }
 
+bool DroneState::has_odometry() const{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    return has_odometry_; // Returns whether or not odometry data has been recieved
+}
+
 void DroneState::odometry_listener(const nav_msgs::msg::Odometry::SharedPtr message){
     const auto& quaternion = message->pose.pose.orientation; // Get the orientation quaternion
 
@@ -71,6 +77,7 @@ void DroneState::odometry_listener(const nav_msgs::msg::Odometry::SharedPtr mess
     pitch_ = quaternion_to_pitch(quaternion.x, quaternion.y, quaternion.z, quaternion.w); // Converting quaternion to pitch
     yaw_ = quaternion_to_yaw(quaternion.x, quaternion.y, quaternion.z, quaternion.w); // Converting quaternion to yaw
 
+    has_odometry_ = true; // Marks that valid odometry data has been received
 // Prints the drones state one per second
 RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,"Position: x=%.2f, y=%.2f, z=%.2f | Velocity: x=%.2f, y=%.2f, z=%.2f |  Roll: %.2f | Pitch: %.2f | Yaw: %.2f", current_position_.x, current_position_.y, current_position_.z, current_velocity_.linear.x, current_velocity_.linear.y, current_velocity_.linear.z, roll_ , pitch_, yaw_);
 }
