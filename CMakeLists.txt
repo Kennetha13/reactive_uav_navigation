@@ -17,6 +17,7 @@ find_package(Eigen3 REQUIRED)
 add_executable(reactive_navigator_node 
   src/reactive_navigator_node_main.cpp
   src/reactive_navigator_node.cpp
+  src/admissible_velocities.cpp
 )
 
 target_include_directories(reactive_navigator_node PUBLIC
