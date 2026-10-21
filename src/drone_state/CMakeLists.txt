@@ -27,21 +27,6 @@ ament_target_dependencies(drone_state_lib
   geometry_msgs
 )
 
-# Standalone executable for testing DroneState
-add_executable(drone_state_node
-  src/drone_state_main.cpp
-)
-
-target_link_libraries(drone_state_node
-  drone_state_lib
-)
-
-ament_target_dependencies(drone_state_node
-  rclcpp
-  nav_msgs
-  geometry_msgs
-)
-
 install(
   TARGETS drone_state_lib
   EXPORT drone_state_targets
@@ -51,21 +36,18 @@ install(
 )
 
 install(
-  TARGETS drone_state_node
-  DESTINATION lib/${PROJECT_NAME}
-)
-
-install(
   DIRECTORY include/
   DESTINATION include
 )
 
 ament_export_targets(drone_state_targets HAS_LIBRARY_TARGET)
+
 ament_export_dependencies(
   rclcpp
   nav_msgs
   geometry_msgs
 )
+
 ament_export_include_directories(include)
 
 if(BUILD_TESTING)
