@@ -3,16 +3,19 @@
 
 #include <mutex>
 #include <cmath>
+#include <memory>
+#include <functional>
+#include <chrono>
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/path.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include "tf2/utils.h"
+#include "reactive_uav_navigation/drone_state.hpp"
+
 
 class ReactiveNavigator : public rclcpp::Node
 {
 public:
-  ReactiveNavigator() : Node("reactive_navigator")
+  ReactiveNavigator(std::shared_ptr<DroneState> drone_state) : Node("reactive_navigator"), drone_state_(drone_state)
   {
     // QoS (Quality of Service) to keep history queue of last 10 messages
     auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
@@ -27,12 +30,6 @@ public:
 
     // Publisher for drone movement commands
     cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/mavros/setpoint_velocity/cmd_vel_unstamped", 10);
-
-    // Subscribe to odometry to know where the robot is
-    odom_subscription_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/mavros/local_position/odom", rclcpp::SensorDataQoS(),
-      std::bind(&ReactiveNavigator::odom_callback, this, std::placeholders::_1)
-    );
 
     control_timer_ = this->create_wall_timer(
       std::chrono::milliseconds(100), // 10 Hz
@@ -72,39 +69,26 @@ private:
     );
   }
 
-  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
-  {
-    std::lock_guard<std::mutex> lock(path_mutex_);
-    current_x_ = msg->pose.pose.position.x;
-    current_y_ = msg->pose.pose.position.y;
-
-    // Extract robot yaw orientation from quaternion
-    tf2::Quaternion q(
-      msg->pose.pose.orientation.x,
-      msg->pose.pose.orientation.y,
-      msg->pose.pose.orientation.z,
-      msg->pose.pose.orientation.w
-    );
-    tf2::Matrix3x3 m(q);
-    double roll, pitch;
-    m.getRPY(roll, pitch, current_yaw_);
-    
-    has_odom_ = true;
-  }
-
   void control_loop()
   {
     nav_msgs::msg::Path current_path = get_global_path();
     geometry_msgs::msg::Twist cmd;
 
     // Do nothing if the path is empty
-    if (!has_odom_ || current_path.poses.empty() || current_index_ >= current_path.poses.size()) {
+    if (!drone_state_->has_odometry() || current_path.poses.empty() || current_index_ >= current_path.poses.size()) {
       RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Path is empty or completed. Stopping the drone.");
       cmd.linear.x = 0.0;
       cmd.angular.z = 0.0;
       cmd_vel_publisher->publish(cmd);
       return;
     }
+
+    // Gets latest position and yaw from DroneState
+    auto current_position = drone_state_->get_current_position();
+
+    const double current_x = current_position.x;
+    const double current_y = current_position.y;
+    const double current_yaw = drone_state_->get_yaw();
     
 
     // ######################################################################################
@@ -116,7 +100,7 @@ private:
 
     while (current_index_ < current_path.poses.size()) {
       const auto &p = current_path.poses[current_index_].pose.position;
-      if (std::hypot(p.x - current_x_, p.y - current_y_) >= 0.3) break;
+      if (std::hypot(p.x - current_x, p.y - current_y) >= 0.3) break;
       RCLCPP_INFO(get_logger(), "Reached waypoint %zu, moving to next.", current_index_);
       ++current_index_;
     }
@@ -127,11 +111,11 @@ private:
     }
 
     const auto &target = current_path.poses[current_index_].pose.position;
-    const double dx = target.x - current_x_;
-    const double dy = target.y - current_y_;
+    const double dx = target.x - current_x;
+    const double dy = target.y - current_y;
     const double distance = std::hypot(dx, dy);
 
-    double heading_error = std::atan2(dy, dx) - current_yaw_;
+    double heading_error = std::atan2(dy, dx) - current_yaw;
     while (heading_error > M_PI)  heading_error -= 2.0 * M_PI;
     while (heading_error < -M_PI) heading_error += 2.0 * M_PI;
 
@@ -154,8 +138,8 @@ private:
 
     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
     "idx=%zu/%zu pos=(%.2f,%.2f) target=(%.2f,%.2f) dist=%.2f yaw=%.2f err=%.2f cmd=(%.2f,%.2f,%.2f)",
-    current_index_, current_path.poses.size(), current_x_, current_y_,
-    target.x, target.y, distance, current_yaw_, heading_error,
+    current_index_, current_path.poses.size(), current_x, current_y,
+    target.x, target.y, distance, current_yaw, heading_error,
     cmd.linear.x, cmd.linear.y, cmd.angular.z);
 
     cmd_vel_publisher->publish(cmd);
@@ -166,13 +150,7 @@ private:
   nav_msgs::msg::Path global_path_;
   mutable std::mutex path_mutex_;
   size_t current_index_ = 0;
-
-  // Subscription for odometry
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscription_;
-  double current_x_ = 0.0;
-  double current_y_ = 0.0;
-  double current_yaw_ = 0.0;
-  bool has_odom_ = false;
+  std::shared_ptr<DroneState> drone_state_;
 
   // Publisher for drone movement commands
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher;

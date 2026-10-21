@@ -14,12 +14,12 @@ find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(drone_state REQUIRED)
 
 add_executable(reactive_navigator_node
   src/reactive_navigator_node_main.cpp
   src/reactive_navigator_node.cpp
   src/admissible_velocities.cpp
+  src/drone_state.cpp
 )
 
 target_include_directories(reactive_navigator_node PUBLIC
@@ -33,7 +33,6 @@ ament_target_dependencies(reactive_navigator_node
   geometry_msgs
   std_msgs
   tf2
-  drone_state
 )
 
 install(

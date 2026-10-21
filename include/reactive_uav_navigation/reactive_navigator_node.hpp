@@ -7,7 +7,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include "drone_state/drone_state.hpp"
+#include "reactive_uav_navigation/drone_state.hpp"
 
 namespace reactive_uav_navigation {
 
