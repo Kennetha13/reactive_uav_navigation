@@ -7,10 +7,10 @@
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 
-class DroneState : public rclcpp::Node{ // Inherits from ROS 2 Node
+class DroneState { 
 
     public:
-            DroneState(); // Constructor
+            DroneState(rclcpp::Node *node); // Constructor
 
             geometry_msgs::msg::Point get_current_position() const; // Drone's current position
             geometry_msgs::msg::Twist get_current_velocity() const; // Drone's latest linear and angular velocity

@@ -14,7 +14,7 @@ namespace reactive_uav_navigation {
 class ReactiveNavigator : public rclcpp::Node
 {
 public:
-  ReactiveNavigator(std::shared_ptr<DroneState> drone_state);
+  ReactiveNavigator();
   nav_msgs::msg::Path get_global_path() const;
 
 private:

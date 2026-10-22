@@ -2,7 +2,7 @@
 
 namespace reactive_uav_navigation {
 
-ReactiveNavigator::ReactiveNavigator(std::shared_ptr<DroneState> drone_state) : Node("reactive_navigator"), drone_state_(drone_state)
+ReactiveNavigator::ReactiveNavigator() : Node("reactive_navigator")
 {
 // QoS (Quality of Service) to keep history queue of last 10 messages
 auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
@@ -14,6 +14,9 @@ path_subscription_ = this->create_subscription<nav_msgs::msg::Path>(
 	std::bind(&ReactiveNavigator::path_callback, this, std::placeholders::_1) // bind the current object instance to a function, which will handle the incoming arguments
 );
 RCLCPP_INFO(this->get_logger(), "Listening for global path...");
+
+// Create drone state object
+drone_state_ = std::make_shared<DroneState>(this);
 
 // Publisher for drone movement commands
 cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/mavros/setpoint_velocity/cmd_vel_unstamped", 10);
@@ -122,6 +125,7 @@ cmd.angular.z = k_w * heading_error;
 // END of POC code
 // ######################################################################################
 
+// Verify drone_state object is functioning
 RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
 "idx=%zu/%zu pos=(%.2f,%.2f) target=(%.2f,%.2f) dist=%.2f yaw=%.2f err=%.2f cmd=(%.2f,%.2f,%.2f)",
 current_index_, current_path.poses.size(), current_x, current_y,
