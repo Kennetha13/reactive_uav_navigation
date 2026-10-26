@@ -56,8 +56,7 @@ bool AdmissibleVelocities::isAdmissible(const CandidateVelocity& v, double dCol)
 std::vector<AdmissibleCandidate> AdmissibleVelocities::filterAdmissible(
     const std::vector<CandidateVelocity>& candidates,
     const DronePose& current,
-    const DistanceCalculator& distanceCalculator,
-    const IRayCaster& rayCaster) const {
+    const DistanceFunction& distanceFunction) const {
     std::vector<AdmissibleCandidate> admissible;
     admissible.reserve(candidates.size());
 
@@ -67,8 +66,8 @@ std::vector<AdmissibleCandidate> AdmissibleVelocities::filterAdmissible(
         // Center the ray fan on the direction of motion: horizontally along
         // the predicted heading, tilted up or down by the climb angle.
         const double pitch = std::atan2(v.vz, v.vx);
-        const double dCol = distanceCalculator.computeDistMin(
-            predicted.position, predicted.yaw, pitch, rayCaster);
+        const double dCol = distanceFunction.computeDistMin(
+            predicted.position, predicted.yaw, pitch);
 
         if (isAdmissible(v, dCol)) {
             admissible.push_back(AdmissibleCandidate{v, predicted, dCol});

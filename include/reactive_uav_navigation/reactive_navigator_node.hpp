@@ -7,6 +7,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/twist.hpp"
+#include "reactive_uav_navigation/common.hpp"
 #include "reactive_uav_navigation/drone_state.hpp"
 
 namespace reactive_uav_navigation {
@@ -30,8 +31,6 @@ private:
 
   // Shared object for the drone's current state
   std::shared_ptr<DroneState> drone_state_;
-
-
 
   // Publisher for drone movement commands
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher;

@@ -20,7 +20,7 @@ float quaternion_to_yaw(float x, float y, float z, float w){
     return std::atan2(2.0f * (w * z + x * y), 1.0f - 2.0f * (y * y + z * z));
 }
 
-// Constructor, calls the constructor of the base class Node
+// DroneState constructor, initialize odometry subscription
 DroneState::DroneState(rclcpp::Node *node){
     auto odometry_qos = rclcpp::SensorDataQoS();
 

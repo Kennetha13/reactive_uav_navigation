@@ -1,26 +1,17 @@
+#include "reactive_uav_navigation/ray_cast.hpp"
 #include <cmath>
 #include <limits>
-#include <optional>
-
-#include <geometry_msgs/msg/vector3.hpp>
-#include <sensor_msgs/msg/point_cloud2.hpp>
-
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 
-struct RayHit
-{
-    double distance;  // Distance along the ray, meters
-    pcl::PointXYZ point;
-};
-
-std::optional<RayHit> castRayThroughPointCloud(
-    const sensor_msgs::msg::PointCloud2& cloud,
+std::optional<RayCast::RayHit> RayCast::castRay(
     const geometry_msgs::msg::Vector3& ray_direction,
-    double max_range = 20.0,
-    double ray_radius = 0.20)
+    double max_range) const
 {
+    // Collect the latest point cloud from the LiDAR sensor.
+    sensor_msgs::msg::PointCloud2 cloud = collectPointCloud();
+
     pcl::PointCloud<pcl::PointXYZ> points;
     pcl::fromROSMsg(cloud, points);
 
@@ -38,7 +29,7 @@ std::optional<RayHit> castRayThroughPointCloud(
     const double dy = ray_direction.y / magnitude;
     const double dz = ray_direction.z / magnitude;
 
-    const double radius_squared = ray_radius * ray_radius;
+    const double radius_squared = RAY_RADIUS * RAY_RADIUS;
 
     double closest_distance = std::numeric_limits<double>::max();
     pcl::PointXYZ closest_point;
@@ -95,6 +86,14 @@ std::optional<RayHit> castRayThroughPointCloud(
         closest_distance,
         closest_point
     };
+}
+
+sensor_msgs::msg::PointCloud2 RayCast::collectPointCloud() const {
+    // Placeholder implementation.
+    // I imagine this function would have to subscribe to a ROS2 topic to gather this data
+    // If that is the case, please reference drone_state.hpp and drone_state.cpp for an internal example of this
+    sensor_msgs::msg::PointCloud2 cloud;
+    return cloud;
 }
 
 /*

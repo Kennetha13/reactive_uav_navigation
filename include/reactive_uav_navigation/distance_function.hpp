@@ -5,7 +5,7 @@
 //
 //     G(v) = alpha * Heading(v) + beta * Dist(v) + gamma * Vel(v)
 //
-// This header implements only the Dist(v) term. Heading(v), Vel(v), the
+// This component implements only the Dist(v) term. Heading(v), Vel(v), the
 // weighting and the search over candidate velocities live elsewhere.
 //
 // Method
@@ -26,12 +26,7 @@
 //
 //     Distance(v) = max(0, (dist_min - R_drone) / (r_search - R_drone))
 //
-// Dependencies
-// ------------
-// Ray casting against the environment (point cloud, octomap, LiDAR scan,
-// etc.) is not implemented here. It is abstracted behind IRayCaster, so
-// whichever component owns the obstacle representation provides an
-// implementation and this class applies the DWA-3D math on top of it.
+// Ray casting against the environment is provided by RayCast.
 //
 // Conventions
 // -----------
@@ -42,48 +37,14 @@
 
 #pragma once
 
-#include <algorithm>
 #include <cmath>
-#include <limits>
-#include <stdexcept>
+#include <geometry_msgs/msg/vector3.hpp>
+
+#include "reactive_uav_navigation/ray_cast.hpp"
 
 namespace reactive_uav_navigation {
 
-// Minimal 3D vector, defined here so this header has no external
-// dependencies. If the project standardizes on another vector type (e.g.
-// Eigen::Vector3d or geometry_msgs::msg::Vector3), replace this definition
-// or add a thin adapter; only the x/y/z fields are relied upon.
-struct Vector3 {
-    double x = 0.0;
-    double y = 0.0;
-    double z = 0.0;
-};
-
-// ---------------------------------------------------------------------
-// Obstacle lookup interface used by DistanceCalculator.
-//
-// Implementations wrap the project's obstacle representation (point cloud,
-// occupancy map, LiDAR scan, ...) and answer one question: how far along a
-// given ray is the nearest obstacle?
-//
-// Contract for castRay():
-//   - `direction` is a unit vector in the same frame as `origin`.
-//   - Returns the distance from `origin` to the first obstacle hit along
-//     `direction`, if that hit is within `maxRange`.
-//   - If nothing is hit within `maxRange`, returns exactly `maxRange`.
-//     Do not return a sentinel such as -1 or infinity: DistanceCalculator
-//     treats "result == maxRange" as "no obstacle on this ray".
-// ---------------------------------------------------------------------
-class IRayCaster {
-public:
-    virtual ~IRayCaster() = default;
-
-    virtual double castRay(const Vector3& origin,
-                            const Vector3& direction,
-                            double maxRange) const = 0;
-};
-
-// Configuration for DistanceCalculator.
+// Configuration for DistanceFunction.
 //
 // These are physical constants of the vehicle and sensor plus tuning
 // choices. They are fixed at startup and are not read from telemetry, so
@@ -99,33 +60,16 @@ struct DistanceParams {
     int numThetaBeams = 5;         // number of vertical ray samples (more = finer, slower)
 
     // Throws std::invalid_argument if the configuration is unusable.
-    void validate() const {
-        // The normalization divides by (r_search - R_drone).
-        if (r_search <= R_drone) {
-            throw std::invalid_argument(
-                "r_search must be strictly greater than R_drone");
-        }
-        if (numPsiBeams < 1 || numThetaBeams < 1) {
-            throw std::invalid_argument(
-                "numPsiBeams and numThetaBeams must be >= 1");
-        }
-        if (psi_max_beam < 0.0 || theta_max_beam < 0.0) {
-            throw std::invalid_argument(
-                "beam half-angles must be non-negative");
-        }
-    }
+    void validate() const;
 };
 
 // Computes Dist(v) for candidate velocities. Holds only configuration, so a
 // single instance can be shared across planning cycles. Methods are const
 // and keep no per-call state.
-class DistanceCalculator {
+class DistanceFunction {
 public:
     // Throws std::invalid_argument if `params` fails DistanceParams::validate().
-    explicit DistanceCalculator(const DistanceParams& params)
-        : params_(params) {
-        params_.validate();
-    }
+    explicit DistanceFunction(const DistanceParams& params);
 
     // Returns the normalized clearance term Distance(v) in [0, 1] for one
     // candidate velocity.
@@ -135,15 +79,9 @@ public:
     //                 atan2(vy, vx)
     //   headingPitch: pitch of the candidate velocity v (rad), e.g.
     //                 atan2(vz, hypot(vx, vy)); use 0 for planar motion
-    //   rayCaster:    obstacle lookup (see IRayCaster)
-    double computeDistance(const Vector3& position,
-                            double headingYaw,
-                            double headingPitch,
-                            const IRayCaster& rayCaster) const {
-        const double distMin = computeDistMin(position, headingYaw,
-                                               headingPitch, rayCaster);
-        return normalize(distMin);
-    }
+    double computeDistance(const geometry_msgs::msg::Vector3& position,
+                           double headingYaw,
+                           double headingPitch) const;
 
     // Same as above, but takes the candidate velocity as Cartesian components
     // and derives yaw and pitch internally. Convenient when the components
@@ -154,13 +92,7 @@ public:
     // velocity; it is produced by the DWA velocity sampling, not read from a
     // topic. A zero velocity yields yaw = pitch = 0.
     double computeDistance(double x, double y, double z,
-                            double vx, double vy, double vz,
-                            const IRayCaster& rayCaster) const {
-        const Vector3 position{x, y, z};
-        const double yaw = std::atan2(vy, vx);
-        const double pitch = std::atan2(vz, std::hypot(vx, vy));
-        return computeDistance(position, yaw, pitch, rayCaster);
-    }
+                           double vx, double vy, double vz) const;
 
     // Returns dist_min: the shortest obstacle hit distance (m) over all
     // sampled rays, before subtracting R_drone or normalizing. If no ray hits
@@ -168,97 +100,32 @@ public:
     //
     // Public so callers can log the unnormalized clearance, e.g. for
     // navigation metrics or debugging. Arguments are as for computeDistance().
-    double computeDistMin(const Vector3& position,
-                           double headingYaw,
-                           double headingPitch,
-                           const IRayCaster& rayCaster) const {
-        double distMin = std::numeric_limits<double>::infinity();
-
-        for (int i = 0; i < params_.numPsiBeams; ++i) {
-            const double psi_i = sampleOffset(
-                i, params_.numPsiBeams, params_.psi_max_beam);
-            const double rho_psi = shortenFactor(
-                psi_i, params_.psi_max_beam, params_.lambda_psi);
-
-            for (int j = 0; j < params_.numThetaBeams; ++j) {
-                const double theta_j = sampleOffset(
-                    j, params_.numThetaBeams, params_.theta_max_beam);
-                const double rho_theta = shortenFactor(
-                    theta_j, params_.theta_max_beam, params_.lambda_theta);
-
-                // Search length for this ray: L_ij = r_search * rho_psi_i * rho_theta_j
-                const double L_ij = params_.r_search * rho_psi * rho_theta;
-                if (L_ij <= 0.0) {
-                    continue;  // ray has been shortened to nothing
-                }
-
-                const Vector3 direction = rayDirectionFromAngles(
-                    headingYaw + psi_i, headingPitch + theta_j);
-
-                const double hit = rayCaster.castRay(position, direction, L_ij);
-
-                // A result equal to L_ij means the ray found nothing within
-                // its search length (see the IRayCaster contract), so only
-                // strictly shorter results count as obstacles. The epsilon
-                // guards against floating-point noise in that comparison.
-                constexpr double kEps = 1e-9;
-                if (hit < L_ij - kEps) {
-                    distMin = std::min(distMin, hit);
-                }
-            }
-        }
-
-        // No ray detected an obstacle: report full search range, which
-        // normalizes to a Distance(v) of 1.
-        if (!std::isfinite(distMin)) {
-            distMin = params_.r_search;
-        }
-        return distMin;
-    }
+    double computeDistMin(const geometry_msgs::msg::Vector3& position,
+                          double headingYaw,
+                          double headingPitch) const;
 
 private:
     DistanceParams params_;
+    RayCast rayCaster_;
 
     // Returns the angular offset of sample `index` out of `count`, spaced
     // evenly over [-maxAngle, +maxAngle]. A single sample is the center ray
     // (offset 0).
-    static double sampleOffset(int index, int count, double maxAngle) {
-        if (count == 1) {
-            return 0.0;
-        }
-        const double t = static_cast<double>(index) / (count - 1);  // 0..1
-        return -maxAngle + t * (2.0 * maxAngle);
-    }
+    static double sampleOffset(int index, int count, double maxAngle);
 
     // Returns the rho factor in [0, 1] for a ray offset by `angle`:
     // 1 for the center ray, decreasing linearly to (1 - lambda) at maxAngle.
-    static double shortenFactor(double angle, double maxAngle, double lambda) {
-        if (maxAngle <= 0.0) {
-            return 1.0;
-        }
-        const double rho = 1.0 - lambda * std::fabs(angle) / maxAngle;
-        return std::max(0.0, rho);
-    }
+    static double shortenFactor(double angle, double maxAngle, double lambda);
 
     // Converts yaw and pitch to a unit direction vector using the
     // conventions in the file header. Any change to the world frame
     // convention must be reflected here.
-    static Vector3 rayDirectionFromAngles(double yaw, double pitch) {
-        const double cp = std::cos(pitch);
-        return Vector3{
-            cp * std::cos(yaw),
-            cp * std::sin(yaw),
-            std::sin(pitch)
-        };
-    }
+    static geometry_msgs::msg::Vector3 rayDirectionFromAngles(
+        double yaw, double pitch);
 
     // Maps dist_min to Distance(v): subtracts the drone's radius and scales
     // by the usable range, clamping at 0 when an obstacle is within R_drone.
-    double normalize(double distMin) const {
-        const double numerator = distMin - params_.R_drone;
-        const double denominator = params_.r_search - params_.R_drone;
-        return std::max(0.0, numerator / denominator);
-    }
+    double normalize(double distMin) const;
 };
 
 } // namespace reactive_uav_navigation

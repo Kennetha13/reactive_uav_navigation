@@ -26,7 +26,7 @@
 //     y'   = y + v_x * dt * sin(yaw')
 //     z'   = z + v_z * dt
 //
-// d_col is taken from DistanceCalculator::computeDistMin (distance_function.hpp)
+// d_col is taken from DistanceFunction::computeDistMin (distance_function.hpp)
 // evaluated at that predicted position. The paper evaluates Dist(v) at the same
 // predicted position, so the result is returned for reuse.
 //
@@ -48,6 +48,7 @@
 
 #include <vector>
 
+#include "reactive_uav_navigation/common.hpp"
 #include "reactive_uav_navigation/distance_function.hpp"
 
 namespace reactive_uav_navigation {
@@ -73,7 +74,7 @@ struct CandidateVelocity {
 
 // Drone position and yaw in the world frame, either current or predicted.
 struct DronePose {
-    Vector3 position;
+    geometry_msgs::msg::Vector3 position;
     double yaw = 0.0;  // rad
 };
 
@@ -105,7 +106,7 @@ public:
     bool isAdmissible(const CandidateVelocity& v, double dCol) const;
 
     // Keeps the candidates (already in Vs ∩ Vd) that pass the Va check. For
-    // each one, predicts the pose and casts the DistanceCalculator ray fan
+    // each one, predicts the pose and casts the DistanceFunction ray fan
     // from it, centered on the candidate's direction of motion.
     //
     // May return an empty vector (e.g. moving fast toward an obstacle); the
@@ -113,8 +114,7 @@ public:
     std::vector<AdmissibleCandidate> filterAdmissible(
         const std::vector<CandidateVelocity>& candidates,
         const DronePose& current,
-        const DistanceCalculator& distanceCalculator,
-        const IRayCaster& rayCaster) const;
+        const DistanceFunction& distanceFunction) const;
 
     const AdmissibleParams& params() const { return params_; }
 

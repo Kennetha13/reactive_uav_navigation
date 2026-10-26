@@ -11,6 +11,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(pcl_conversions REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(Eigen3 REQUIRED)
@@ -20,6 +22,9 @@ add_executable(reactive_navigator_node
   src/reactive_navigator_node.cpp
   src/admissible_velocities.cpp
   src/drone_state.cpp
+  src/distance_function.cpp
+  src/ray_cast.cpp
+  src/dynamic_window.cpp
 )
 
 target_include_directories(reactive_navigator_node PUBLIC
@@ -31,6 +36,8 @@ ament_target_dependencies(reactive_navigator_node
   rclcpp
   nav_msgs
   geometry_msgs
+  sensor_msgs
+  pcl_conversions
   std_msgs
   tf2
 )

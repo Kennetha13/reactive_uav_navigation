@@ -22,7 +22,7 @@ drone_state_ = std::make_shared<DroneState>(this);
 cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/mavros/setpoint_velocity/cmd_vel_unstamped", 10);
 
 control_timer_ = this->create_wall_timer(
-	std::chrono::milliseconds(100), // 10 Hz
+	std::chrono::milliseconds(static_cast<int>(CONTROL_PERIOD * 1000)),
 	std::bind(&ReactiveNavigator::control_loop, this)
 );
 RCLCPP_INFO(this->get_logger(), "Control loop initialized...");

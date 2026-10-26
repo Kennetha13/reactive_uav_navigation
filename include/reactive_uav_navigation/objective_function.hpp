@@ -8,7 +8,7 @@
 // This header only combines the three terms and picks the best candidate.
 // The terms themselves are computed elsewhere:
 //   Heading(v)  -> heading function (not yet in the repo)
-//   Dist(v)     -> DistanceCalculator::computeDistance()   (distance_function.hpp)
+//   Dist(v)     -> DistanceFunction::computeDistance()   (distance_function.hpp)
 //   Vel(v)      -> velocity()                              (velocity.cpp)
 // Each term must already be normalized to [0, 1].
 //
