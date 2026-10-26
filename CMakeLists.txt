@@ -25,6 +25,7 @@ add_executable(reactive_navigator_node
   src/distance_function.cpp
   src/ray_cast.cpp
   src/dynamic_window.cpp
+  src/velocity_function.cpp
 )
 
 target_include_directories(reactive_navigator_node PUBLIC
