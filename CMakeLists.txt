@@ -23,6 +23,7 @@ add_executable(reactive_navigator_node
   src/admissible_velocities.cpp
   src/drone_state.cpp
   src/distance_function.cpp
+  src/heading_function.cpp
   src/ray_cast.cpp
   src/dynamic_window.cpp
   src/velocity_function.cpp
