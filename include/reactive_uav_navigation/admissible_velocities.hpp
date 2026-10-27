@@ -64,14 +64,6 @@ struct AdmissibleParams {
     void validate() const;
 };
 
-// One candidate from the dynamic window, as the drone-centric control vector
-// [v_x, v_z, w_z].
-struct CandidateVelocity {
-    double vx = 0.0;  // forward speed (m/s)
-    double vz = 0.0;  // vertical speed (m/s)
-    double wz = 0.0;  // yaw rate (rad/s)
-};
-
 // Drone position and yaw in the world frame, either current or predicted.
 struct DronePose {
     geometry_msgs::msg::Vector3 position;

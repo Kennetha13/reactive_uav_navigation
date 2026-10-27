@@ -1,13 +1,9 @@
 #ifndef DYNAMIC_WINDOW_HPP_
 #define DYNAMIC_WINDOW_HPP_
 
-namespace reactive_uav_navigation {
+#include "reactive_uav_navigation/common.hpp"
 
-struct Velocity {
-    double vx;
-    double vz;
-    double yaw_rate;
-};
+namespace reactive_uav_navigation {
 
 struct AccelerationLimits {
     double ax;
@@ -16,8 +12,8 @@ struct AccelerationLimits {
 };
 
 struct VelocitySpace {
-    Velocity min;
-    Velocity max;
+    CandidateVelocity min;
+    CandidateVelocity max;
 };
 
 struct IntersectionResult {
@@ -27,7 +23,7 @@ struct IntersectionResult {
 
 // Calculate Vd
 VelocitySpace calculateDynamicWindow(
-    const Velocity& current,
+    const CandidateVelocity& current,
     const AccelerationLimits& accel,
     double dt
 );
