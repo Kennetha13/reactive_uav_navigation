@@ -1,7 +1,7 @@
 #ifndef HEADING_FUNCTION_H
 #define HEADING_FUNCTION_H
 
-#include "vector"
+#include <vector>
 #include "reactive_uav_navigation/common.hpp"
 #include "reactive_uav_navigation/drone_state.hpp"
 
@@ -13,7 +13,7 @@ class HeadingFunction {
 
         // Computes the maximum z error among all candidate velocities, which is used to normalize the z heading score.
         // You must store the result of #getMaxZError then subsequently pass it to #computeHeading
-        double getMaxZError(vector<CandidateVelocity> candidate_velocities);
+        double getMaxZError(std::vector<CandidateVelocity> candidate_velocities);
         double computeHeading(CandidateVelocity velocity, double max_z_error);
     private:
         const DroneState& drone_state_;

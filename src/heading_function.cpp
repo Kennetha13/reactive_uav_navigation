@@ -44,7 +44,7 @@ double HeadingFunction::computeZHeading(CandidateVelocity velocity, double max_z
     return 1 - (delta_z / max_z_error);
 }
 
-double HeadingFunction::getMaxZError(vector<CandidateVelocity> candidate_velocities) {
+double HeadingFunction::getMaxZError(std::vector<CandidateVelocity> candidate_velocities) {
     double max_z_error = 0.0;
     double current_z = drone_state_.get_current_position().z;
 
