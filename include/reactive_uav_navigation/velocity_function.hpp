@@ -13,4 +13,4 @@ class VelocityFunction {
         // Then you will need to create a service call and initialize vel_max after object initialization
         double vel_max_x_;
 };
-#endif  
+#endif
