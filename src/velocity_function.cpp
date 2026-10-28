@@ -29,9 +29,9 @@ void VelocityFunction::getMaxVelocity() {
         });
 }
 
-// Vel(v) from the objective function
-// Get a single candidate velocity in 3d vector (Eigen) form, with reference max velocity
-// Return normalized double in [0, 1] range
+// Vel(v) from the objective function (Fig. 21)
+// Get a single candidate velocity in 3d vector form
+// Returns candidate_velocity.x / vel_max, negative value if the velocity is backwards
 double VelocityFunction::computeVelocity(
     geometry_msgs::msg::Vector3 candidate_velocity,
     double k_z,
@@ -42,9 +42,9 @@ double VelocityFunction::computeVelocity(
     const double vel_max = vel_max_x_.load();
 
     // avoiding div by 0
-    if (!forward || vel_max_x_ <= 0.0) {
+    if (!forward || vel_max <= 0.0) {
         return 0.0;
     }
 
-    return std::min(candidate_velocity.x / vel_max, 0.0, 1.0);
+    return candidate_velocity.x / vel_max;
 }

@@ -3,12 +3,12 @@
 
 #include <atomic>
 #include <geometry_msgs/msg/vector3.hpp>
-#include <rclcpp/rclcpp.h>
+#include <rclcpp/rclcpp.hpp>
 #include <mavros_msgs/srv/param_get.hpp>
 
 class VelocityFunction {
     public:
-        explicit VelocityFunction(rclcpp:Node *node);
+        explicit VelocityFunction(rclcpp::Node *node);
 
         double computeVelocity(
             geometry_msgs::msg::Vector3 candidate_velocity,
@@ -20,12 +20,14 @@ class VelocityFunction {
         // drone_state uses a topic (which is more complex) but you only need to use a one-time service call
         // You will need to have VelocityFunction accept a node in its constructor
         // Then you will need to create a service call and initialize vel_max after object initialization
+
+        // Reads vel_max from MAVROS
         void getMaxVelocity();
 
         rclcpp::Node *node_;
         rclcpp::Client<mavros_msgs::srv::ParamGet>::SharedPtr param_client_;
         rclcpp::TimerBase::SharedPtr retry_timer_;
 
-        double vel_max_x_ = 0.0;
+        std::atomic<double> vel_max_x_{0.0};
 };
 #endif
