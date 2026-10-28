@@ -22,9 +22,9 @@ void VelocityFunction::getMaxVelocity() {
         [this](rclcpp::Client<mavros_msgs::srv::ParamGet>::SharedFuture future){
             auto response = future.get();
             if (response->success && response->value.real > 0.0) {
-                vel_max_xy_ = response->value.real;
+                vel_max_x_ = response->value.real;
                 retry_timer_->cancel();
-                RCLCPP_INFO(node_->get_logger(), "vel_max_xy_ = %.2f m/s", vel_max_xy_.load());
+                RCLCPP_INFO(node_->get_logger(), "vel_max_x_ = %.2f m/s", vel_max_x_.load());
             }
         });
 }
