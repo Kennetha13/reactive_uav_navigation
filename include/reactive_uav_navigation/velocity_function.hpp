@@ -10,6 +10,9 @@ class VelocityFunction {
     public:
         explicit VelocityFunction(rclcpp::Node *node);
 
+        // Vel(v), Fig. 21
+        // HeadingFunction::computeYawHeading will need to be calculated first
+        // and fed into #computeVelocity as head_psi
         double computeVelocity(
             geometry_msgs::msg::Vector3 candidate_velocity,
             double k_z,
