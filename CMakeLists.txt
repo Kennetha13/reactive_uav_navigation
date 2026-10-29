@@ -15,7 +15,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
-find_package(Eigen3 REQUIRED)
+find_package(mavros_msgs REQUIRED)
 
 add_executable(reactive_navigator_node
   src/reactive_navigator_node_main.cpp
@@ -42,6 +42,7 @@ ament_target_dependencies(reactive_navigator_node
   pcl_conversions
   std_msgs
   tf2
+  mavros_msgs
 )
 
 install(

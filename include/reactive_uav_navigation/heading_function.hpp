@@ -15,9 +15,9 @@ class HeadingFunction {
         // You must store the result of #getMaxZError then subsequently pass it to #computeHeading
         double getMaxZError(std::vector<CandidateVelocity> candidate_velocities);
         double computeHeading(CandidateVelocity velocity, double max_z_error);
+        double computeYawHeading(CandidateVelocity velocity);
     private:
         const DroneState& drone_state_;
-        double computeYawHeading(CandidateVelocity velocity);
         double computeZHeading(CandidateVelocity velocity, double max_z_error);
 
 };
