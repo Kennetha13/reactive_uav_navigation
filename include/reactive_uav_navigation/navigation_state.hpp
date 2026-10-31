@@ -22,8 +22,11 @@
 //   1. No safe velocity: after the Vs/Vd/Va filters and selectBestVelocity(),
 //      no candidate is left (BestCandidate::found == false). Every reachable
 //      velocity would risk a collision.
-//   2. No progress: safe velocities exist, but the remaining distance to the
-//      goal has not shrunk by at least min_progress in stall_timeout seconds.
+//   2. No progress: safe velocities exist, but the distance remaining ALONG THE
+//      PATH has not shrunk by at least min_progress in stall_timeout seconds.
+//      (Along the path, not straight-line to the goal: on a path that first
+//      heads away from its end, the straight-line distance grows even when the
+//      drone follows the path perfectly.)
 //      This catches the drone hovering or circling in front of an obstacle it
 //      cannot get around (a DWA local minimum, e.g. a wall across the path).
 //
@@ -42,7 +45,9 @@
 //     NavInputs in;
 //     in.now = this->now().seconds();
 //     in.has_path = true;
-//     in.distance_to_goal = /* drone to LAST waypoint */;
+//     in.distance_to_goal = /* straight line, drone to LAST waypoint */;
+//     in.remaining_path_length = remainingPathLength(waypoints, current_index_,
+//                                                    x, y, z);
 //     in.safe_velocity_found = best.found;
 //     in.chosen_dist = best.found ? best.candidate.dist : 0.0;
 //     if (nav_state_.update(in)) {
@@ -53,7 +58,10 @@
 
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <limits>
+#include <vector>
 
 namespace reactive_uav_navigation {
 
@@ -92,10 +100,21 @@ struct NavStateParams {
 struct NavInputs {
     double now = 0.0;                  // s, e.g. node->now().seconds()
     bool has_path = false;             // a global path is loaded and odometry is ready
-    double distance_to_goal = 0.0;     // m, from the drone to the LAST waypoint of the path
+    double distance_to_goal = 0.0;     // m, straight line from the drone to the LAST waypoint (goal check)
+    double remaining_path_length = 0.0;// m, distance left ALONG the path (progress check);
+                                       //    see remainingPathLength() below
     bool safe_velocity_found = false;  // BestCandidate::found from selectBestVelocity()
     double chosen_dist = 1.0;          // Dist(v) of the chosen candidate, in [0, 1]
 };
+
+// Distance left along the path: from the drone to the waypoint it is heading
+// for (`current_index`), plus the length of every path segment after that.
+// Use this for NavInputs::remaining_path_length. Waypoints are {x, y, z} in the
+// same frame as the drone position (e.g. copied from nav_msgs::msg::Path).
+// Returns 0 if the path is empty or current_index is past the end.
+double remainingPathLength(const std::vector<std::array<double, 3>>& waypoints,
+                           std::size_t current_index,
+                           double x, double y, double z);
 
 class NavigationStateMachine {
 public:

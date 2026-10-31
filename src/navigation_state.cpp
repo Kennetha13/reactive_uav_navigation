@@ -1,8 +1,29 @@
 #include "reactive_uav_navigation/navigation_state.hpp"
 
+#include <cmath>
 #include <stdexcept>
 
 namespace reactive_uav_navigation {
+
+double remainingPathLength(const std::vector<std::array<double, 3>>& waypoints,
+                           std::size_t current_index,
+                           double x, double y, double z) {
+    if (current_index >= waypoints.size()) {
+        return 0.0;
+    }
+    const auto& next = waypoints[current_index];
+    double total = std::sqrt((next[0] - x) * (next[0] - x) +
+                             (next[1] - y) * (next[1] - y) +
+                             (next[2] - z) * (next[2] - z));
+    for (std::size_t i = current_index; i + 1 < waypoints.size(); ++i) {
+        const auto& a = waypoints[i];
+        const auto& b = waypoints[i + 1];
+        total += std::sqrt((b[0] - a[0]) * (b[0] - a[0]) +
+                           (b[1] - a[1]) * (b[1] - a[1]) +
+                           (b[2] - a[2]) * (b[2] - a[2]));
+    }
+    return total;
+}
 
 const char* toString(NavState s) {
     switch (s) {
@@ -96,12 +117,12 @@ NavState NavigationStateMachine::decide(const NavInputs& in) {
 void NavigationStateMachine::updateProgress(const NavInputs& in) {
     if (!progress_started_) {
         progress_started_ = true;
-        best_distance_ = in.distance_to_goal;
+        best_distance_ = in.remaining_path_length;
         last_progress_time_ = in.now;
         return;
     }
-    if (in.distance_to_goal < best_distance_ - params_.min_progress) {
-        best_distance_ = in.distance_to_goal;
+    if (in.remaining_path_length < best_distance_ - params_.min_progress) {
+        best_distance_ = in.remaining_path_length;
         last_progress_time_ = in.now;
     }
 }
