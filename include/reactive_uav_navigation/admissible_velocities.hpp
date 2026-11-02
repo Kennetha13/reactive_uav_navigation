@@ -32,9 +32,9 @@
 //
 // Input
 // -----
-// filterAdmissible() takes the candidates that already passed Vs and Vd. The
-// input format (std::vector<CandidateVelocity>) is a placeholder until the
-// Vs/Vd code is in the repo; adapt it to whatever that code produces.
+// filterAdmissible() takes the candidates that already passed Vs and Vd, i.e.
+// the output of generateCandidates() in velocity_space.hpp. Because Vs has
+// v_x >= 0, those candidates never move backward.
 //
 // Conventions
 // -----------
@@ -57,7 +57,7 @@ namespace reactive_uav_navigation {
 // DistanceParams.
 struct AdmissibleParams {
     double a_max = 1.0;          // maximum deceleration used for braking (m/s^2); not given in the paper
-    double dt = 1.0;             // prediction time-step (s); paper recommends 10x the control period
+    double dt = VELOCITY_HORIZON;  // prediction time-step (s); 10x the control period, shared with Vd
     double safety_margin = 0.0;  // extra clearance subtracted from d_col (m); not in the paper, 0 matches eq. 9
 
     // Throws std::invalid_argument if the configuration is unusable.

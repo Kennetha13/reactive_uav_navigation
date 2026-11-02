@@ -57,6 +57,28 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
 
   ament_lint_auto_find_test_dependencies()
+
+  add_executable(test_velocity_pipeline
+    test/test_velocity_pipeline.cpp
+    src/dynamic_window.cpp
+  )
+  target_include_directories(test_velocity_pipeline PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  )
+  add_test(NAME test_velocity_pipeline COMMAND test_velocity_pipeline)
+
+  # computeVr with a stand-in DistanceFunction (test/fake shadows the real
+  # header, so this needs no ROS or PCL)
+  add_executable(test_compute_vr
+    test/test_compute_vr.cpp
+    src/dynamic_window.cpp
+    src/admissible_velocities.cpp
+  )
+  target_include_directories(test_compute_vr BEFORE PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/fake
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+  )
+  add_test(NAME test_compute_vr COMMAND test_compute_vr)
 endif()
 
 ament_package()

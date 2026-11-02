@@ -6,22 +6,29 @@
 
 namespace reactive_uav_navigation {
 
-// Calculate Dynamic Window (Vd)
-VelocitySpace calculateDynamicWindow(
-    const CandidateVelocity& current,
-    const AccelerationLimits& accel,
-    double dt
-) {
+void DynamicWindowParams::validate() const {
     if (!std::isfinite(dt) || dt <= 0.0 ||
-        !std::isfinite(current.vx) ||
-        !std::isfinite(current.vz) ||
-        !std::isfinite(current.wz) ||
         !std::isfinite(accel.ax) || accel.ax < 0.0 ||
         !std::isfinite(accel.az) || accel.az < 0.0 ||
-        !std::isfinite(accel.yaw_accel) ||
-        accel.yaw_accel < 0.0) {
-        throw std::invalid_argument("Invalid Dynamic Window inputs");
+        !std::isfinite(accel.yaw_accel) || accel.yaw_accel < 0.0) {
+        throw std::invalid_argument("Invalid Dynamic Window parameters");
     }
+}
+
+DynamicWindow::DynamicWindow(const DynamicWindowParams& params) : params_(params) {
+    params_.validate();
+}
+
+// Calculate Dynamic Window (Vd)
+VelocitySpace DynamicWindow::compute(const CandidateVelocity& current) const {
+    if (!std::isfinite(current.vx) ||
+        !std::isfinite(current.vz) ||
+        !std::isfinite(current.wz)) {
+        throw std::invalid_argument("Current velocity must be finite");
+    }
+
+    const AccelerationLimits& accel = params_.accel;
+    const double dt = params_.dt;
 
     VelocitySpace vd;
 
@@ -40,54 +47,18 @@ VelocitySpace calculateDynamicWindow(
     return vd;
 }
 
-
-// Calculate Vr = Vs ∩ Vd ∩ Va
-// Assumes Vs, Vd, and Va are available as VelocitySpace objects
-IntersectionResult intersectVelocitySpaces(
-    const VelocitySpace& vs,
-    const VelocitySpace& vd,
-    const VelocitySpace& va
-) {
+// Calculate Vs ∩ Vd (per-axis highest minimum, lowest maximum)
+IntersectionResult DynamicWindow::intersect(const VelocitySpace& vs, const VelocitySpace& vd) {
     VelocitySpace result;
 
-    // Forward velocity intersection
-    result.min.vx = std::max({
-        vs.min.vx,
-        vd.min.vx,
-        va.min.vx
-    });
+    result.min.vx = std::max(vs.min.vx, vd.min.vx);
+    result.max.vx = std::min(vs.max.vx, vd.max.vx);
 
-    result.max.vx = std::min({
-        vs.max.vx,
-        vd.max.vx,
-        va.max.vx
-    });
+    result.min.vz = std::max(vs.min.vz, vd.min.vz);
+    result.max.vz = std::min(vs.max.vz, vd.max.vz);
 
-    // Vertical velocity intersection
-    result.min.vz = std::max({
-        vs.min.vz,
-        vd.min.vz,
-        va.min.vz
-    });
-
-    result.max.vz = std::min({
-        vs.max.vz,
-        vd.max.vz,
-        va.max.vz
-    });
-
-    // Yaw rate intersection
-    result.min.wz = std::max({
-        vs.min.wz,
-        vd.min.wz,
-        va.min.wz
-    });
-
-    result.max.wz = std::min({
-        vs.max.wz,
-        vd.max.wz,
-        va.max.wz
-    });
+    result.min.wz = std::max(vs.min.wz, vd.min.wz);
+    result.max.wz = std::min(vs.max.wz, vd.max.wz);
 
     // Check whether all three dimensions overlap
     bool valid =
@@ -98,4 +69,4 @@ IntersectionResult intersectVelocitySpaces(
     return {valid, result};
 }
 
-} 
+}  // namespace reactive_uav_navigation
