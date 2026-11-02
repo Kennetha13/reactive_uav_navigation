@@ -1,4 +1,5 @@
 #pragma once
+#include "reactive_uav_navigation/common.hpp"
 #include <vector>
 #include <optional>
 #include <algorithm>
@@ -6,48 +7,16 @@
 
 /* 
 
-    objective function interface SKELETON
+    objective function interface
 
 */
 namespace reactive_uav_navigation {
 
-    struct VelocityCandidate { 
-        // all velocities are in m/s
-        double vx = 0.0;
-        double vy = 0.0;
-        double vz = 0.0;
 
-    };
-
-    inline double score_heading(const VelocityCandidate& c) {
-
-        // placeholder for heading function
-        return 0.6;
-    }
-
-    inline double score_distance(const VelocityCandidate& c) {
-
-        // placeholder for distance function
-        return 0.7;
-    }
-
-    // max speed in m/s.
-    // will later match Vs.
-    constexpr double MAX_SPEED = 1.0;
-
-    inline double score_velocity(const VelocityCandidate& c) {
-
-        double speed = std::sqrt( (c.vx * c.vx) + (c.vy * c.vy) + (c.vz * c.vz));
-        double score = speed / MAX_SPEED;
-        score = std::clamp(score, 0.0, 1.0);
-
-        return score;
-    }
-
-    // placeholder values for weights
-    constexpr double ALPHA = 1.0;
-    constexpr double BETA = 1.0;
-    constexpr double GAMMA = 1.0;
+    // weights taken from table 2 in pdf
+    constexpr double ALPHA = 0.3;
+    constexpr double BETA = 0.6;
+    constexpr double GAMMA = 0.1;
 
     /*
         scoring algorithm.
@@ -56,24 +25,35 @@ namespace reactive_uav_navigation {
         gamma * velocity: how much drone cares about speed
         higher a is more goal-driven, b is more cautious, and g for speed
     */
-    inline double score_candidate(const VelocityCandidate& c) {
+    inline double score_candidate(double heading, double distance, double velocity) {
 
-        double sum = (score_heading(c) * ALPHA) + (score_distance(c) * BETA) + (score_velocity(c) * GAMMA);
+        double sum = (heading * ALPHA) + (distance * BETA) + (velocity * GAMMA);
         return sum;
     }
 
-    inline std::optional<VelocityCandidate> select_best_candidate(const std::vector<VelocityCandidate>& candidates) {
+    struct CandidateTerms {
+        CandidateVelocity cmd;
+        double heading_score = 0.0;
+        double distance_score = 0.0;
+        double velocity_score = 0.0;
+    };
+
+    // ties go to first candidate
+    // NaN scores are skipped
+    inline std::optional<CandidateVelocity> select_best_candidate(const std::vector<CandidateTerms>& candidates) {
 
         if (candidates.empty()) return std::nullopt;
 
-        VelocityCandidate best = candidates[0];
-        double best_score = score_candidate(candidates[0]);
+        std::optional<CandidateVelocity> best;
+        double best_score = 0.0;
 
         for (const auto& cand : candidates) {
             
-            double curr_score = score_candidate(cand);
-            if (curr_score > best_score) {
-                best = cand;
+            double curr_score = score_candidate(cand.heading_score, cand.distance_score, cand.velocity_score);
+
+            if (std::isnan(curr_score)) continue;
+            if (!best || curr_score > best_score ) {
+                best = cand.cmd;
                 best_score = curr_score;
             }
         }

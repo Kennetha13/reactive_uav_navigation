@@ -52,6 +52,9 @@ install(
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_velocity_candidate test/test_velocity_candidate.cpp)
+  target_include_directories(test_velocity_candidate PRIVATE include)
 
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)
