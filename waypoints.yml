@@ -1,0 +1,45 @@
+- header:
+  frame_id: map
+
+poses:
+  
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 0.0
+      y: 0.0
+      z: 1.5
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+
+  
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 3.0
+      y: 0.0
+      z: 1.5
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+
+  
+- header:
+    frame_id: map
+  pose:
+    position:
+      x: 6.0
+      y: 0.0
+      z: 1.5
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
