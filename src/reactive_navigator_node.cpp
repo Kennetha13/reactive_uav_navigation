@@ -1,4 +1,5 @@
-#include<reactive_uav_navigation/reactive_navigator_node.hpp>
+#include <functional>
+#include <reactive_uav_navigation/reactive_navigator_node.hpp>
 
 namespace reactive_uav_navigation {
 
@@ -15,6 +16,44 @@ path_subscription_ = this->create_subscription<nav_msgs::msg::Path>(
 );
 RCLCPP_INFO(this->get_logger(), "Listening for global path...");
 
+depth_topic_ = this->declare_parameter<std::string>(
+  "depth_topic", "/depth_camera");
+camera_info_topic_ = this->declare_parameter<std::string>(
+  "camera_info_topic", "/camera_info");
+depth_ray_max_distance_ = this->declare_parameter<double>(
+  "depth_ray_max_distance", 15.0);
+ray_direction_x_ = this->declare_parameter<double>(
+  "ray_direction_x", 0.0);
+ray_direction_y_ = this->declare_parameter<double>(
+  "ray_direction_y", 0.0);
+ray_direction_z_ = this->declare_parameter<double>(
+  "ray_direction_z", 1.0);
+
+rclcpp::QoS camera_qos(rclcpp::KeepLast(10));
+camera_qos.reliable();
+camera_qos.durability_volatile();
+
+depth_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
+  depth_topic_,
+  camera_qos,
+  std::bind(
+    &ReactiveNavigator::depth_image_callback,
+    this,
+    std::placeholders::_1)
+);
+
+camera_info_subscription_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+  camera_info_topic_,
+  camera_qos,
+  std::bind(
+    &ReactiveNavigator::camera_info_callback,
+    this,
+    std::placeholders::_1)
+);
+
+obstacle_distance_publisher_ = this->create_publisher<std_msgs::msg::Float32>(
+  "/obstacle_distance_forward", 10);
+
 // Create drone state object
 drone_state_ = std::make_shared<DroneState>(this);
 
@@ -26,6 +65,18 @@ control_timer_ = this->create_wall_timer(
 	std::bind(&ReactiveNavigator::control_loop, this)
 );
 RCLCPP_INFO(this->get_logger(), "Control loop initialized...");
+}
+
+void ReactiveNavigator::depth_image_callback(
+  const sensor_msgs::msg::Image::SharedPtr msg)
+{
+  depth_ray_processor_.update_depth_image(msg);
+}
+
+void ReactiveNavigator::camera_info_callback(
+  const sensor_msgs::msg::CameraInfo::SharedPtr msg)
+{
+  depth_ray_processor_.update_camera_info(msg);
 }
 
 // Accessor method for the latest global path
@@ -103,6 +154,25 @@ const auto &target = current_path.poses[current_index_].pose.position;
 const double dx = target.x - current_x;
 const double dy = target.y - current_y;
 const double distance = std::hypot(dx, dy);
+
+// The depth processor receives a direction in the camera optical frame.
+// The default (0, 0, 1) checks straight ahead from the camera. These values
+// can be changed through ROS parameters when the avoidance algorithm requests
+// an off-center ray.
+geometry_msgs::msg::Vector3 camera_direction;
+camera_direction.x = ray_direction_x_;
+camera_direction.y = ray_direction_y_;
+camera_direction.z = ray_direction_z_;
+
+const auto obstacle_distance = depth_ray_processor_.castRay(
+  camera_direction,
+  depth_ray_max_distance_);
+
+std_msgs::msg::Float32 obstacle_distance_msg;
+obstacle_distance_msg.data = obstacle_distance.has_value()
+  ? obstacle_distance.value()
+  : static_cast<float>(depth_ray_max_distance_);
+obstacle_distance_publisher_->publish(obstacle_distance_msg);
 
 double heading_error = std::atan2(dy, dx) - current_yaw;
 while (heading_error > M_PI)  heading_error -= 2.0 * M_PI;
