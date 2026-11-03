@@ -12,7 +12,6 @@ std::optional<float> DepthRayProcessor::castRay(
 {
   sensor_msgs::msg::Image image;
   sensor_msgs::msg::CameraInfo camera_info;
-  double vehicle_yaw;
 
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -21,7 +20,6 @@ std::optional<float> DepthRayProcessor::castRay(
     }
     image = latest_depth_image_;
     camera_info = latest_camera_info_;
-    vehicle_yaw = vehicle_yaw_;
   }
 
   if (image.width == 0 || image.height == 0 || max_distance <= 0.0) {
@@ -46,22 +44,9 @@ std::optional<float> DepthRayProcessor::castRay(
     return std::nullopt;
   }
 
-  const double world_x = direction.x / magnitude;
-  const double world_y = direction.y / magnitude;
-  const double world_z = direction.z / magnitude;
-
-  // ENU world frame -> FLU vehicle frame.
-  const double cos_yaw = std::cos(vehicle_yaw);
-  const double sin_yaw = std::sin(vehicle_yaw);
-  const double body_x = cos_yaw * world_x + sin_yaw * world_y;
-  const double body_y = -sin_yaw * world_x + cos_yaw * world_y;
-
-  // FLU vehicle frame -> camera optical frame.
-  // The camera is assumed forward-facing and level:
-  // optical +X = right, +Y = down, +Z = forward.
-  const double camera_x = -body_y;
-  const double camera_y = -world_z;
-  const double camera_z = body_x;
+  const double camera_x = direction.x / magnitude;
+  const double camera_y = direction.y / magnitude;
+  const double camera_z = direction.z / magnitude;
 
   if (camera_z <= 0.0) {
     return std::nullopt;
@@ -129,12 +114,6 @@ void DepthRayProcessor::update_camera_info(
   std::lock_guard<std::mutex> lock(mutex_);
   latest_camera_info_ = *camera_info;
   camera_info_received_ = true;
-}
-
-void DepthRayProcessor::set_vehicle_yaw(double yaw)
-{
-  std::lock_guard<std::mutex> lock(mutex_);
-  vehicle_yaw_ = yaw;
 }
 
 std::optional<float> DepthRayProcessor::read_depth_meters(

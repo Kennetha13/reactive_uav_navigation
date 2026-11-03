@@ -49,6 +49,9 @@ private:
   std::string depth_topic_;
   std::string camera_info_topic_;
   double depth_ray_max_distance_{15.0};
+  double ray_direction_x_{0.0};
+  double ray_direction_y_{0.0};
+  double ray_direction_z_{1.0};
 
   // Publisher for drone movement commands
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher;

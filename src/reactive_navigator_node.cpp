@@ -22,6 +22,12 @@ camera_info_topic_ = this->declare_parameter<std::string>(
   "camera_info_topic", "/camera_info");
 depth_ray_max_distance_ = this->declare_parameter<double>(
   "depth_ray_max_distance", 15.0);
+ray_direction_x_ = this->declare_parameter<double>(
+  "ray_direction_x", 0.0);
+ray_direction_y_ = this->declare_parameter<double>(
+  "ray_direction_y", 0.0);
+ray_direction_z_ = this->declare_parameter<double>(
+  "ray_direction_z", 1.0);
 
 rclcpp::QoS camera_qos(rclcpp::KeepLast(10));
 camera_qos.reliable();
@@ -124,8 +130,6 @@ double current_x = current_position.x;
 double current_y = current_position.y;
 double current_yaw = drone_state_->get_yaw();
 
-depth_ray_processor_.set_vehicle_yaw(current_yaw);
-
 
 // ######################################################################################
 // AI-Generated Code as POC. This is where the reactive navigation logic would be
@@ -151,13 +155,17 @@ const double dx = target.x - current_x;
 const double dy = target.y - current_y;
 const double distance = std::hypot(dx, dy);
 
-geometry_msgs::msg::Vector3 target_direction;
-target_direction.x = dx;
-target_direction.y = dy;
-target_direction.z = 0.0;
+// The depth processor receives a direction in the camera optical frame.
+// The default (0, 0, 1) checks straight ahead from the camera. These values
+// can be changed through ROS parameters when the avoidance algorithm requests
+// an off-center ray.
+geometry_msgs::msg::Vector3 camera_direction;
+camera_direction.x = ray_direction_x_;
+camera_direction.y = ray_direction_y_;
+camera_direction.z = ray_direction_z_;
 
 const auto obstacle_distance = depth_ray_processor_.castRay(
-  target_direction,
+  camera_direction,
   depth_ray_max_distance_);
 
 std_msgs::msg::Float32 obstacle_distance_msg;
