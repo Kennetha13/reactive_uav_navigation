@@ -1,6 +1,18 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
+#include <cmath>
+
+// converts degrees to radians
+inline double degToRad(double degrees) {
+    return degrees * M_PI / 180.0;
+}
+
+// converts radians to degrees
+inline double radToDeg(double radians) {
+    return radians * 180.0 / M_PI;
+}
+
 const double CONTROL_PERIOD = 0.1; // seconds
 const double CONTROL_FREQUENCY = 1.0 / CONTROL_PERIOD; // Hz
 

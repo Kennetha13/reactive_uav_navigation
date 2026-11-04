@@ -1,4 +1,4 @@
-// admissible_velocities.hpp
+// vss_admissible.hpp
 //
 // Admissible velocity set Va of DWA-3D (eq. 9). The
 // objective function
@@ -27,13 +27,13 @@
 //     z'   = z + v_z * dt
 //
 // d_col is taken from DistanceFunction::computeDistMin (distance_function.hpp)
-// evaluated at that predicted position. The paper evaluates Dist(v) at the same
-// predicted position, so the result is returned for reuse.
+// evaluated at that predicted position. Only the admissible velocities are
+// returned; Heading(v) and Dist(v) predict the pose and cast their rays again.
 //
 // Input
 // -----
 // filterAdmissible() takes the candidates that already passed Vs and Vd, i.e.
-// the output of generateCandidates() in velocity_space.hpp. Because Vs has
+// the output of VssCollector::generateCandidates() in vss_collector.hpp. Because Vs has
 // v_x >= 0, those candidates never move backward.
 //
 // Conventions
@@ -70,15 +70,6 @@ struct DronePose {
     double yaw = 0.0;  // rad
 };
 
-// A candidate that passed the Va check, along with its predicted pose and
-// d_col so the caller can reuse them for Heading(v) and Dist(v) without
-// predicting or casting the rays again.
-struct AdmissibleCandidate {
-    CandidateVelocity velocity;
-    DronePose predicted;
-    double dCol = 0.0;
-};
-
 // Applies the Va filter. Holds only configuration, so a single instance can
 // be reused across planning cycles.
 class AdmissibleVelocities {
@@ -103,7 +94,7 @@ public:
     //
     // May return an empty vector (e.g. moving fast toward an obstacle); the
     // caller should then brake.
-    std::vector<AdmissibleCandidate> filterAdmissible(
+    std::vector<CandidateVelocity> filterAdmissible(
         const std::vector<CandidateVelocity>& candidates,
         const DronePose& current,
         const DistanceFunction& distanceFunction) const;
