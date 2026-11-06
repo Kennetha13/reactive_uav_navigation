@@ -18,6 +18,14 @@ RCLCPP_INFO(this->get_logger(), "Listening for global path...");
 // Create drone state object
 drone_state_ = std::make_shared<DroneState>(this);
 
+// DWA-3D components. Built once and reused every control period.
+//   distance_function_  : ray fan used by Va (vss_admissible) to find d_col
+//   vss_collector_      : Vr = Vs ∩ Vd ∩ Va, the candidate velocities to score
+//   objective_function_ : G(v) = alpha*Heading + beta*Dist + gamma*Vel for one candidate
+distance_function_ = std::make_unique<DistanceFunction>(DistanceParams{});
+vss_collector_ = std::make_unique<VssCollector>(this);
+objective_function_ = std::make_unique<ObjectiveFunction>(this, *drone_state_);
+
 // Publisher for drone movement commands
 cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/mavros/setpoint_velocity/cmd_vel_unstamped", 10);
 
@@ -81,12 +89,14 @@ double current_yaw = drone_state_->get_yaw();
 
 
 // ######################################################################################
-// AI-Generated Code as POC. This is where the reactive navigation logic would be
-// to calculate the result velocity for each control period directed at the current pose
+// DWA-3D: choose the velocity for this control period
+//   1. advance past waypoints already reached
+//   2. Vr = Vs ∩ Vd ∩ Va            (VssCollector)
+//   3. score each candidate with G(v) and keep the best (ObjectiveFunction)
+//   4. publish it, or stop if no candidate is available
 // ######################################################################################
 
-// Advance past any waypoints already reached
-
+// 1. Advance past any waypoints already reached
 while (current_index_ < current_path.poses.size()) {
 	const auto &p = current_path.poses[current_index_].pose.position;
 	if (std::hypot(p.x - current_x, p.y - current_y) >= 0.3) break;
@@ -100,39 +110,87 @@ if (current_index_ >= current_path.poses.size()) {
 }
 
 const auto &target = current_path.poses[current_index_].pose.position;
-const double dx = target.x - current_x;
-const double dy = target.y - current_y;
-const double distance = std::hypot(dx, dy);
 
-double heading_error = std::atan2(dy, dx) - current_yaw;
-while (heading_error > M_PI)  heading_error -= 2.0 * M_PI;
-while (heading_error < -M_PI) heading_error += 2.0 * M_PI;
+// 2. Candidate velocities Vr = Vs ∩ Vd ∩ Va
+//    Pose in the world frame (ENU). Current velocity in the drone-centric frame
+//    [vx forward, vz up, wz yaw rate]: /mavros/local_position/odom reports its
+//    twist in the body frame, so linear.x is forward speed.
+DronePose pose;
+pose.position.x = current_position.x;
+pose.position.y = current_position.y;
+pose.position.z = current_position.z;
+pose.yaw = current_yaw;
 
-const double k_v = 0.5, k_w = 2.0, max_speed = 0.4;
-double vx = k_v * dx;
-double vy = k_v * dy;
-const double speed = std::hypot(vx, vy);
-if (speed > max_speed) {
-	vx *= max_speed / speed;
-	vy *= max_speed / speed;
+const geometry_msgs::msg::Twist measured = drone_state_->get_current_velocity();
+CandidateVelocity current_velocity;
+current_velocity.vx = measured.linear.x;
+current_velocity.vz = measured.linear.z;
+current_velocity.wz = measured.angular.z;
+
+const std::vector<CandidateVelocity> vr =
+	vss_collector_->computeVr(*distance_function_, current_velocity, pose);
+
+// 3. Best candidate by G(v)
+const std::optional<ScoredVelocity> best = selectBestVelocity(vr);
+
+// 4. No candidate: every reachable velocity is unsafe (or all scores were NaN).
+//    Stop rather than send an unsafe command.
+if (!best) {
+	RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+		"BLOCKED: no admissible velocity (|Vr| = %zu). Stopping the drone.", vr.size());
+	cmd_vel_publisher->publish(cmd);  // zero command
+	return;
 }
 
-cmd.linear.x = vx;
-cmd.linear.y = vy;
-cmd.angular.z = k_w * heading_error;
+publishVelocity(best->velocity, current_yaw);
 
 //######################################################################################
-// END of POC code
+// END of DWA-3D velocity selection
 // ######################################################################################
 
-// Verify drone_state object is functioning
+// Verify the loop is functioning
 RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
-"idx=%zu/%zu pos=(%.2f,%.2f) target=(%.2f,%.2f) dist=%.2f yaw=%.2f err=%.2f cmd=(%.2f,%.2f,%.2f)",
-current_index_, current_path.poses.size(), current_x, current_y,
-target.x, target.y, distance, current_yaw, heading_error,
-cmd.linear.x, cmd.linear.y, cmd.angular.z);
+"idx=%zu/%zu pos=(%.2f,%.2f,%.2f) target=(%.2f,%.2f,%.2f) yaw=%.2f |Vr|=%zu best=(vx %.2f, vz %.2f, wz %.2f) G=%.3f",
+current_index_, current_path.poses.size(), current_x, current_y, current_position.z,
+target.x, target.y, target.z, current_yaw, vr.size(),
+best->velocity.vx, best->velocity.vz, best->velocity.wz, best->score);
+}
 
-cmd_vel_publisher->publish(cmd);
+std::optional<ReactiveNavigator::ScoredVelocity> ReactiveNavigator::selectBestVelocity(
+	const std::vector<CandidateVelocity>& vr)
+{
+	if (vr.empty()) {
+		return std::nullopt;
+	}
+
+	// Heading(v) normalizes its z term by the largest z error across all of Vr,
+	// so this must run once per cycle before any candidate is scored.
+	objective_function_->prepareCandidates(vr);
+
+	std::optional<ScoredVelocity> best;
+	for (const CandidateVelocity& v : vr) {
+		const double g = objective_function_->computeObjective(v);
+		if (std::isnan(g)) {
+			continue;
+		}
+		if (!best || g > best->score) {
+			best = ScoredVelocity{v, g};
+		}
+	}
+	return best;
+}
+
+void ReactiveNavigator::publishVelocity(const CandidateVelocity& v, double yaw)
+{
+	// cmd_vel_unstamped is interpreted in the world frame (ENU) by MAVROS by
+	// default, but v.vx is forward speed along the drone's heading. Rotate it
+	// into world x/y with the current yaw.
+	geometry_msgs::msg::Twist cmd;
+	cmd.linear.x = v.vx * std::cos(yaw);
+	cmd.linear.y = v.vx * std::sin(yaw);
+	cmd.linear.z = v.vz;
+	cmd.angular.z = v.wz;
+	cmd_vel_publisher->publish(cmd);
 }
 
 }
