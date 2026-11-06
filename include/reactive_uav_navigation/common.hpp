@@ -1,8 +1,24 @@
 #ifndef COMMON_H_
 #define COMMON_H_
 
+#include <cmath>
+
+// converts degrees to radians
+inline double degToRad(double degrees) {
+    return degrees * M_PI / 180.0;
+}
+
+// converts radians to degrees
+inline double radToDeg(double radians) {
+    return radians * 180.0 / M_PI;
+}
+
 const double CONTROL_PERIOD = 0.1; // seconds
 const double CONTROL_FREQUENCY = 1.0 / CONTROL_PERIOD; // Hz
+
+// Prediction horizon shared by the dynamic window (Vd) and the admissible
+// velocities (Va): 10 control periods, as in the DWA-3D paper.
+const double VELOCITY_HORIZON = 10.0 * CONTROL_PERIOD; // seconds
 
 // One candidate from the dynamic window, as the drone-centric control vector
 // [v_x, v_z, w_z].

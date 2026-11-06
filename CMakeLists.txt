@@ -20,12 +20,15 @@ find_package(mavros_msgs REQUIRED)
 add_executable(reactive_navigator_node
   src/reactive_navigator_node_main.cpp
   src/reactive_navigator_node.cpp
-  src/admissible_velocities.cpp
+  src/vss_admissible.cpp
   src/drone_state.cpp
   src/distance_function.cpp
   src/heading_function.cpp
   src/ray_cast.cpp
-  src/dynamic_window.cpp
+  src/vss_dynamic_window.cpp
+  src/vss_collector.cpp
+  src/vss_maximum.cpp
+  src/px4_param_reader.cpp
   src/velocity_function.cpp
   src/objective_function.cpp
 )
@@ -61,6 +64,36 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
 
   ament_lint_auto_find_test_dependencies()
+
+  # Both tests build without ROS or PCL: test/fake shadows distance_function.hpp
+  # (and geometry_msgs) with a stand-in, see test/fake.
+  add_executable(test_velocity_pipeline
+    test/test_velocity_pipeline.cpp
+    src/vss_dynamic_window.cpp
+    src/vss_admissible.cpp
+    src/vss_collector.cpp
+    src/vss_maximum.cpp
+  )
+  target_include_directories(test_velocity_pipeline BEFORE PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/fake
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+  )
+  target_compile_definitions(test_velocity_pipeline PRIVATE VSS_NO_ROS)
+  add_test(NAME test_velocity_pipeline COMMAND test_velocity_pipeline)
+
+  add_executable(test_compute_vr
+    test/test_compute_vr.cpp
+    src/vss_dynamic_window.cpp
+    src/vss_admissible.cpp
+    src/vss_collector.cpp
+    src/vss_maximum.cpp
+  )
+  target_include_directories(test_compute_vr BEFORE PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/fake
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+  )
+  target_compile_definitions(test_compute_vr PRIVATE VSS_NO_ROS)
+  add_test(NAME test_compute_vr COMMAND test_compute_vr)
 endif()
 
 ament_package()
