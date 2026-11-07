@@ -4,10 +4,14 @@
 #include <vector>
 #include "reactive_uav_navigation/common.hpp"
 #include "reactive_uav_navigation/drone_state.hpp"
+#include <geometry_msgs/msg/point.hpp>
 
 class HeadingFunction {
     public:
-        explicit HeadingFunction(const DroneState& drone_state);
+        explicit HeadingFunction(
+            const DroneState& drone_state,
+            const geometry_msgs::msg::Point& goal
+        );
         double K_yaw = 0.8; // Prioritize staying on course toward goal, favor vertical avoidance
         double K_z = 0.2; // Prioritize maintaining altitude with the goal, favor lateral avoidance
 
@@ -15,9 +19,10 @@ class HeadingFunction {
         // You must store the result of #getMaxZError then subsequently pass it to #computeHeading
         double getMaxZError(std::vector<CandidateVelocity> candidate_velocities);
         double computeHeading(CandidateVelocity velocity, double max_z_error);
-        double computeYawHeading(CandidateVelocity velocity);
+        double computeYawHeading(const CandidateVelocity& velocity);
     private:
         const DroneState& drone_state_;
+        geometry_msgs::msg::Point goal_;
         double computeZHeading(CandidateVelocity velocity, double max_z_error);
 
 };

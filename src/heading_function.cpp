@@ -1,8 +1,11 @@
 #include "reactive_uav_navigation/heading_function.hpp"
 #include <cmath>
+#include <stdexcept>
+#include <algorithm>
 
-HeadingFunction::HeadingFunction(const DroneState& drone_state)
-    : drone_state_(drone_state) {
+HeadingFunction::HeadingFunction(const DroneState& drone_state,
+                               const geometry_msgs::msg::Point& goal)
+    : drone_state_(drone_state), goal_(goal) {
     if (K_yaw < 0.0 || K_z < 0.0) {
         throw std::invalid_argument(
             "K_yaw and K_z must be non-negative");
@@ -19,29 +22,35 @@ double HeadingFunction::computeHeading(CandidateVelocity velocity, double max_z_
     return (K_yaw * yawHeading) + (K_z * zHeading);
 }
 
-double HeadingFunction::computeYawHeading(CandidateVelocity velocity) {
+double HeadingFunction::computeYawHeading(const CandidateVelocity& velocity) {
 
-    double current_x = drone_state_.get_current_position().x;
-    double x_goal = current_x + (CONTROL_PERIOD * current_x * std::cos(velocity.wz));
-    double delta_x = x_goal - current_x;
+    const auto position = drone_state_.get_current_position();
 
-    double current_y = drone_state_.get_current_position().y;
-    double y_goal = current_y + (CONTROL_PERIOD * current_y * std::sin(velocity.wz));
-    double delta_y = y_goal - current_y;
+    const double predicted_yaw = drone_state_.get_yaw() + (CONTROL_PERIOD * velocity.wz);
+
+
+    double predicted_x = position.x + CONTROL_PERIOD * velocity.vx * std::cos(predicted_yaw);
+    double delta_x = goal_.x - predicted_x;
+
+    double predicted_y = position.y + CONTROL_PERIOD * velocity.vx * std::sin(predicted_yaw);
+    double delta_y = goal_.y - predicted_y;
 
     double desired_yaw = std::atan2(delta_y, delta_x);
-    double current_yaw = drone_state_.get_yaw();
 
-    double yaw_error = std::abs(desired_yaw - current_yaw);
-    return 1 - (yaw_error / M_PI);
+    double yaw_error = std::remainder(desired_yaw - predicted_yaw, 2 * M_PI);
+    return 1.0 - std::abs(yaw_error) / M_PI;
 }
 
 double HeadingFunction::computeZHeading(CandidateVelocity velocity, double max_z_error) {
     double current_z = drone_state_.get_current_position().z;
-    double z_goal = current_z + (CONTROL_PERIOD * velocity.vz);
-    double delta_z = std::abs(z_goal - current_z);
+    double predicted_z = current_z + (CONTROL_PERIOD * velocity.vz);
+    double delta_z = std::abs(goal_.z - predicted_z);
 
-    return 1 - (delta_z / max_z_error);
+    if (max_z_error <= 0.0) {
+        return 1.0;
+    }
+
+    return 1.0 - (delta_z / max_z_error);
 }
 
 double HeadingFunction::getMaxZError(std::vector<CandidateVelocity> candidate_velocities) {
@@ -49,8 +58,8 @@ double HeadingFunction::getMaxZError(std::vector<CandidateVelocity> candidate_ve
     double current_z = drone_state_.get_current_position().z;
 
     for (const auto& velocity : candidate_velocities) {
-        double z_goal = current_z + (CONTROL_PERIOD * velocity.vz);
-        double delta_z = std::abs(z_goal - current_z);
+        double predicted_z = current_z + (CONTROL_PERIOD * velocity.vz);
+        double delta_z = std::abs(goal_.z - predicted_z);
         if (delta_z > max_z_error) {
             max_z_error = delta_z;
         }
