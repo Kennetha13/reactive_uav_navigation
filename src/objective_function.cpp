@@ -1,4 +1,3 @@
-
 #include "reactive_uav_navigation/objective_function.hpp"
 
 #include <algorithm>
@@ -8,24 +7,43 @@
 #include "reactive_uav_navigation/distance_function.hpp"
 #include "reactive_uav_navigation/velocity_function.hpp"
 
+
+/*
+initialize with goal also:
+ObjectiveFunction(this, *drone_state_, goal);
+
+
+ Before each velocity candidate is run, do:
+ objective_function_->setGoal(target);
+ objective_function_->prepareCandidates(vr);
+
+
+
+*/
 namespace reactive_uav_navigation
 {
 
 ObjectiveFunction::ObjectiveFunction(
     rclcpp::Node* node,
-    const DroneState& drone_state
+    const DroneState& drone_state,
+    const geometry_msgs::msg::Point& goal
 )
     : drone_state_(drone_state)
 {
     // Instantiate the three scoring functions.
     heading_function_ =
-        std::make_unique<HeadingFunction>(drone_state_);
+        std::make_unique<HeadingFunction>(drone_state_, goal);
 
     distance_function_ =
         std::make_unique<DistanceFunction>(DistanceParams{});
 
     velocity_function_ =
         std::make_unique<VelocityFunction>(node);
+}
+
+void ObjectiveFunction::setGoal(const geometry_msgs::msg::Point& goal)
+{
+    heading_function_->setGoal(goal);
 }
 
 
@@ -58,30 +76,34 @@ double ObjectiveFunction::computeObjective(
     // 2. DISTANCE SCORE
     // -----------------------------------------
 
-    // Get the drone's current position.
     const auto current_position =
-        drone_state_.get_current_position();
+    drone_state_.get_current_position();
 
-    geometry_msgs::msg::Vector3 position;
+    // Estimate the drone's future position.
+    const double predicted_yaw =
+    drone_state_.get_yaw() + candidate.wz * CONTROL_PERIOD;
 
-    position.x = current_position.x;
-    position.y = current_position.y;
-    position.z = current_position.z;
+    geometry_msgs::msg::Vector3 predicted_position;
 
-    // Estimate future yaw.
-    double heading_yaw =
-        drone_state_.get_yaw() + candidate.wz * CONTROL_PERIOD;
+    predicted_position.x = 
+        current_position.x + 
+        candidate.vx * CONTROL_PERIOD * std::cos(predicted_yaw);
 
-    // Estimate vertical pitch.
-    double heading_pitch =
-        std::atan2(candidate.vz, std::abs(candidate.vx));
+    predicted_position.y = 
+        current_position.y + 
+        candidate.vx * CONTROL_PERIOD * std::sin(predicted_yaw);
+
+    predicted_position.z = 
+        current_position.z + 
+        candidate.vz * CONTROL_PERIOD;
+
+    const double predicted_pitch = std::atan2(candidate.vz, std::abs(candidate.vx));
 
     double distance_score =
-        distance_function_->computeDistance(
-            position,
-            heading_yaw,
-            heading_pitch
-        );
+    distance_function_->computeDistance(
+        predicted_position,
+        predicted_yaw,
+        predicted_pitch);
 
 
     // -----------------------------------------

@@ -15,6 +15,8 @@ class HeadingFunction {
         double K_yaw = 0.8; // Prioritize staying on course toward goal, favor vertical avoidance
         double K_z = 0.2; // Prioritize maintaining altitude with the goal, favor lateral avoidance
 
+        // Sets the goal for the heading function.
+        void setGoal(const geometry_msgs::msg::Point& goal);
         // Computes the maximum z error among all candidate velocities, which is used to normalize the z heading score.
         // You must store the result of #getMaxZError then subsequently pass it to #computeHeading
         double getMaxZError(std::vector<CandidateVelocity> candidate_velocities);

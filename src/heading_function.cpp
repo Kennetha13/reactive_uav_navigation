@@ -16,6 +16,12 @@ HeadingFunction::HeadingFunction(const DroneState& drone_state,
     }
 }
 
+void HeadingFunction::setGoal(
+    const geometry_msgs::msg::Point& goal) 
+    {
+    goal_ = goal;
+}
+
 double HeadingFunction::computeHeading(CandidateVelocity velocity, double max_z_error) {
     double yawHeading = computeYawHeading(velocity);
     double zHeading = computeZHeading(velocity, max_z_error);

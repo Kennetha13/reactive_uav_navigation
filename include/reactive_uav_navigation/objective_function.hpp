@@ -36,6 +36,7 @@
 #include <vector>
 
 #include <rclcpp/rclcpp.hpp>
+#include <geometry_msgs/msg/point.hpp>
 
 #include "reactive_uav_navigation/common.hpp"
 #include "reactive_uav_navigation/drone_state.hpp"
@@ -55,8 +56,11 @@ public:
     // Constructor accepts the ROS2 node and existing drone state.
     ObjectiveFunction(
         rclcpp::Node* node,
-        const DroneState& drone_state
+        const DroneState& drone_state,
+        const geometry_msgs::msg::Point& goal
     );
+    
+    void setGoal(const geometry_msgs::msg::Point& goal);
 
     // Calculates the maximum vertical error for the candidate set.
     void prepareCandidates(
