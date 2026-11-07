@@ -41,6 +41,8 @@ ObjectiveFunction::ObjectiveFunction(
         std::make_unique<VelocityFunction>(node);
 }
 
+ObjectiveFunction::~ObjectiveFunction() = default;
+
 void ObjectiveFunction::setGoal(const geometry_msgs::msg::Point& goal)
 {
     heading_function_->setGoal(goal);

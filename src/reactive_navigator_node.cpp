@@ -24,7 +24,9 @@ drone_state_ = std::make_shared<DroneState>(this);
 //   objective_function_ : G(v) = alpha*Heading + beta*Dist + gamma*Vel for one candidate
 distance_function_ = std::make_unique<DistanceFunction>(DistanceParams{});
 vss_collector_ = std::make_unique<VssCollector>(this);
-objective_function_ = std::make_unique<ObjectiveFunction>(this, *drone_state_);
+// No path has arrived yet, so start with a placeholder goal; control_loop()
+// sets the real one (the current waypoint) every cycle with setGoal().
+objective_function_ = std::make_unique<ObjectiveFunction>(this, *drone_state_, geometry_msgs::msg::Point{});
 
 // Publisher for drone movement commands
 cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/mavros/setpoint_velocity/cmd_vel_unstamped", 10);
@@ -131,6 +133,9 @@ const std::vector<CandidateVelocity> vr =
 	vss_collector_->computeVr(*distance_function_, current_velocity, pose);
 
 // 3. Best candidate by G(v)
+//    Heading(v) scores how well each candidate points at the current waypoint,
+//    so the goal must be updated before the candidates are prepared and scored.
+objective_function_->setGoal(target);
 const std::optional<ScoredVelocity> best = selectBestVelocity(vr);
 
 // 4. No candidate: every reachable velocity is unsafe (or all scores were NaN).

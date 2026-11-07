@@ -59,6 +59,10 @@ public:
         const DroneState& drone_state,
         const geometry_msgs::msg::Point& goal
     );
+
+    // Defined in objective_function.cpp, where HeadingFunction, DistanceFunction
+    // and VelocityFunction are complete types (required by std::unique_ptr).
+    ~ObjectiveFunction();
     
     void setGoal(const geometry_msgs::msg::Point& goal);
 
