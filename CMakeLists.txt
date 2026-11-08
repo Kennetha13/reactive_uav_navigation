@@ -30,6 +30,7 @@ add_executable(reactive_navigator_node
   src/vss_maximum.cpp
   src/px4_param_reader.cpp
   src/velocity_function.cpp
+  src/navigation_state.cpp  
 )
 
 target_include_directories(reactive_navigator_node PUBLIC
