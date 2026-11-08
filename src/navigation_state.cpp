@@ -5,22 +5,22 @@
 
 namespace reactive_uav_navigation {
 
-double remainingPathLength(const std::vector<std::array<double, 3>>& waypoints,
+double remainingPathLength(const std::vector<geometry_msgs::msg::PoseStamped>& waypoints,
                            std::size_t current_index,
                            double x, double y, double z) {
     if (current_index >= waypoints.size()) {
         return 0.0;
     }
-    const auto& next = waypoints[current_index];
-    double total = std::sqrt((next[0] - x) * (next[0] - x) +
-                             (next[1] - y) * (next[1] - y) +
-                             (next[2] - z) * (next[2] - z));
+    const auto& next = waypoints[current_index].pose.position;
+    double total = std::sqrt((next.x - x) * (next.x - x) +
+                             (next.y - y) * (next.y - y) +
+                             (next.z - z) * (next.z - z));
     for (std::size_t i = current_index; i + 1 < waypoints.size(); ++i) {
-        const auto& a = waypoints[i];
-        const auto& b = waypoints[i + 1];
-        total += std::sqrt((b[0] - a[0]) * (b[0] - a[0]) +
-                           (b[1] - a[1]) * (b[1] - a[1]) +
-                           (b[2] - a[2]) * (b[2] - a[2]));
+        const auto& a = waypoints[i].pose.position;
+        const auto& b = waypoints[i + 1].pose.position;
+        total += std::sqrt((b.x - a.x) * (b.x - a.x) +
+                           (b.y - a.y) * (b.y - a.y) +
+                           (b.z - a.z) * (b.z - a.z));
     }
     return total;
 }

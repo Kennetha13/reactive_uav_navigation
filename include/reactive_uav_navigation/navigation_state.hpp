@@ -46,7 +46,7 @@
 //     in.now = this->now().seconds();
 //     in.has_path = true;
 //     in.distance_to_goal = /* straight line, drone to LAST waypoint */;
-//     in.remaining_path_length = remainingPathLength(waypoints, current_index_,
+//     in.remaining_path_length = remainingPathLength(current_path.poses, current_index_,
 //                                                    x, y, z);
 //     in.safe_velocity_found = best.found;
 //     in.chosen_dist = best.found ? best.candidate.dist : 0.0;
@@ -58,10 +58,11 @@
 
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <limits>
 #include <vector>
+
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 namespace reactive_uav_navigation {
 
@@ -109,10 +110,10 @@ struct NavInputs {
 
 // Distance left along the path: from the drone to the waypoint it is heading
 // for (`current_index`), plus the length of every path segment after that.
-// Use this for NavInputs::remaining_path_length. Waypoints are {x, y, z} in the
-// same frame as the drone position (e.g. copied from nav_msgs::msg::Path).
+// Use this for NavInputs::remaining_path_length. Pass the global path's poses
+// directly (nav_msgs::msg::Path::poses), in the same frame as the drone position.
 // Returns 0 if the path is empty or current_index is past the end.
-double remainingPathLength(const std::vector<std::array<double, 3>>& waypoints,
+double remainingPathLength(const std::vector<geometry_msgs::msg::PoseStamped>& waypoints,
                            std::size_t current_index,
                            double x, double y, double z);
 
@@ -138,7 +139,7 @@ public:
     const NavStateParams& params() const { return params_; }
 
 private:
-    NavStateParams params_;
+    const NavStateParams params_;  // fixed for the life of the state machine
     NavState state_ = NavState::WAITING_FOR_PATH;
     BlockedReason reason_ = BlockedReason::NONE;
 
