@@ -72,8 +72,13 @@ void NavigationStateMachine::reset() {
 }
 
 bool NavigationStateMachine::mustHover() const {
-    return state_ == NavState::BLOCKED || state_ == NavState::GOAL_REACHED ||
-           state_ == NavState::WAITING_FOR_PATH;
+    // NO_PROGRESS is still reported as BLOCKED, but the drone keeps flying the
+    // best velocity: hovering would guarantee no progress, so the state could
+    // never clear. Only "no safe velocity" (collision risk) forces a hover.
+    if (state_ == NavState::BLOCKED) {
+        return reason_ == BlockedReason::NO_SAFE_VELOCITY;
+    }
+    return state_ == NavState::GOAL_REACHED || state_ == NavState::WAITING_FOR_PATH;
 }
 
 NavState NavigationStateMachine::decide(const NavInputs& in) {
