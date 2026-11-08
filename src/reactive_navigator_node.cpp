@@ -60,6 +60,7 @@ if (is_executing_path) {
 
 global_path_ = *msg;
 current_index_ = 0;
+nav_state_.reset();
 RCLCPP_INFO(
 	this->get_logger(),
 	"Received new path with frame_id: '%s' containing %zu poses. Beginning execution to first pose.",
@@ -75,6 +76,12 @@ geometry_msgs::msg::Twist cmd;
 
 // Do nothing if the path is empty
 if (!drone_state_->has_odometry() || current_path.poses.empty() || current_index_ >= current_path.poses.size()) {
+	// Past the last waypoint = GOAL_REACHED; otherwise still WAITING_FOR_PATH
+	const bool path_done = !current_path.poses.empty() && current_index_ >= current_path.poses.size();
+	NavInputs in;
+	in.now = this->now().seconds();
+	in.has_path = path_done;
+	updateNavState(in);
 	RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Path is empty or completed. Stopping the drone.");
 	cmd.linear.x = 0.0;
 	cmd.angular.z = 0.0;
@@ -107,6 +114,10 @@ while (current_index_ < current_path.poses.size()) {
 }
 
 if (current_index_ >= current_path.poses.size()) {
+	NavInputs in;
+	in.now = this->now().seconds();
+	in.has_path = true;  // distance_to_goal = 0 -> GOAL_REACHED
+	updateNavState(in);
 	cmd_vel_publisher->publish(cmd);  // zero command
 	return;
 }
@@ -138,11 +149,21 @@ const std::vector<CandidateVelocity> vr =
 objective_function_->setGoal(target);
 const std::optional<ScoredVelocity> best = selectBestVelocity(vr);
 
-// 4. No candidate: every reachable velocity is unsafe (or all scores were NaN).
-//    Stop rather than send an unsafe command.
-if (!best) {
-	RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-		"BLOCKED: no admissible velocity (|Vr| = %zu). Stopping the drone.", vr.size());
+// 4. Navigation state: FOLLOWING_PATH, AVOIDING_OBSTACLE, BLOCKED or GOAL_REACHED
+const auto &goal = current_path.poses.back().pose.position;
+NavInputs in;
+in.now = this->now().seconds();
+in.has_path = true;
+in.distance_to_goal = std::hypot(goal.x - current_x, goal.y - current_y, goal.z - current_position.z);
+in.remaining_path_length = remainingPathLength(current_path.poses, current_index_,
+	current_x, current_y, current_position.z);
+in.safe_velocity_found = best.has_value();
+in.chosen_dist = best ? best->scores.distance : 0.0;
+updateNavState(in);
+
+// 5. BLOCKED (no safe velocity, or no progress) or GOAL_REACHED: hover in place
+//    rather than send a command.
+if (!best || nav_state_.mustHover()) {
 	cmd_vel_publisher->publish(cmd);  // zero command
 	return;
 }
@@ -155,8 +176,8 @@ publishVelocity(best->velocity, current_yaw);
 
 // Verify the loop is functioning
 RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
-"idx=%zu/%zu pos=(%.2f,%.2f,%.2f) target=(%.2f,%.2f,%.2f) yaw=%.2f |Vr|=%zu best=(vx %.2f, vz %.2f, wz %.2f) G=%.3f",
-current_index_, current_path.poses.size(), current_x, current_y, current_position.z,
+"[%s] idx=%zu/%zu pos=(%.2f,%.2f,%.2f) target=(%.2f,%.2f,%.2f) yaw=%.2f |Vr|=%zu best=(vx %.2f, vz %.2f, wz %.2f) G=%.3f",
+toString(nav_state_.state()), current_index_, current_path.poses.size(), current_x, current_y, current_position.z,
 target.x, target.y, target.z, current_yaw, vr.size(),
 best->velocity.vx, best->velocity.vz, best->velocity.wz, best->score);
 }
@@ -184,6 +205,20 @@ std::optional<ReactiveNavigator::ScoredVelocity> ReactiveNavigator::selectBestVe
 		}
 	}
 	return best;
+}
+
+void ReactiveNavigator::updateNavState(const NavInputs& in)
+{
+	if (!nav_state_.update(in)) {
+		return;  // no change: print nothing
+	}
+	if (nav_state_.state() == NavState::BLOCKED) {
+		RCLCPP_WARN(this->get_logger(), "Navigation state -> BLOCKED (%s)",
+			toString(nav_state_.blockedReason()));
+	} else {
+		RCLCPP_INFO(this->get_logger(), "Navigation state -> %s",
+			toString(nav_state_.state()));
+	}
 }
 
 void ReactiveNavigator::publishVelocity(const CandidateVelocity& v, double yaw)

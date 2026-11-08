@@ -13,6 +13,7 @@
 #include "reactive_uav_navigation/drone_state.hpp"
 #include "reactive_uav_navigation/distance_function.hpp"
 #include "reactive_uav_navigation/objective_function.hpp"
+#include "reactive_uav_navigation/navigation_state.hpp"
 #include "reactive_uav_navigation/vss_collector.hpp"
 
 namespace reactive_uav_navigation {
@@ -46,6 +47,10 @@ private:
   // the current yaw into world x/y.
   void publishVelocity(const CandidateVelocity& v, double yaw);
 
+  // Feeds one control cycle into the navigation state machine and prints the
+  // new state to the terminal when it changes.
+  void updateNavState(const NavInputs& in);
+
   // Subscription and variables for handling global path
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_subscription_;
   nav_msgs::msg::Path global_path_;
@@ -59,6 +64,9 @@ private:
   std::unique_ptr<DistanceFunction> distance_function_;  // Dist(v) rays, used by Va
   std::unique_ptr<VssCollector> vss_collector_;          // Vr = Vs ∩ Vd ∩ Va
   std::unique_ptr<ObjectiveFunction> objective_function_; // G(v)
+
+  // FOLLOWING_PATH / AVOIDING_OBSTACLE / BLOCKED / GOAL_REACHED / WAITING_FOR_PATH
+  NavigationStateMachine nav_state_;
 
   // Publisher for drone movement commands
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher;
