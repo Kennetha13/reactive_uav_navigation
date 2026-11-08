@@ -49,6 +49,16 @@ namespace reactive_uav_navigation
 
 class DistanceFunction;
 
+// The three terms of G(v) for one candidate, each clamped to [0, 1], and their
+// weighted sum. Kept together so the chosen velocity's individual scores can be
+// passed on (e.g. distance -> NavInputs::chosen_dist) or logged.
+struct ObjectiveScores {
+    double heading = 0.0;   // Heading(v)
+    double distance = 0.0;  // Dist(v)
+    double velocity = 0.0;  // Vel(v)
+    double total = 0.0;     // G(v) = alpha*heading + beta*distance + gamma*velocity
+};
+
 class ObjectiveFunction
 {
 public:
@@ -71,7 +81,11 @@ public:
         const std::vector<CandidateVelocity>& candidates
     );
 
+    // Calculates Heading, Dist and Vel for one candidate velocity, and G(v).
+    ObjectiveScores computeScores(const CandidateVelocity& candidate);
+
     // Calculates the combined score for one candidate velocity.
+    // Same as computeScores(candidate).total.
     double computeObjective(const CandidateVelocity& candidate);
 
 private:
