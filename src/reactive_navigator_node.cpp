@@ -174,12 +174,13 @@ std::optional<ReactiveNavigator::ScoredVelocity> ReactiveNavigator::selectBestVe
 
 	std::optional<ScoredVelocity> best;
 	for (const CandidateVelocity& v : vr) {
-		const double g = objective_function_->computeObjective(v);
+		const ObjectiveScores scores = objective_function_->computeScores(v);
+		const double g = scores.total;
 		if (std::isnan(g)) {
 			continue;
 		}
 		if (!best || g > best->score) {
-			best = ScoredVelocity{v, g};
+			best = ScoredVelocity{v, g, scores};
 		}
 	}
 	return best;

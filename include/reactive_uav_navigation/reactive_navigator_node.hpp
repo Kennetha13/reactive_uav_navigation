@@ -28,10 +28,12 @@ private:
 
   void control_loop();
 
-  // One candidate velocity and its objective score G(v)
+  // One candidate velocity, its objective score G(v), and the individual
+  // Heading/Dist/Vel scores behind it (scores.distance feeds the navigation state)
   struct ScoredVelocity {
     CandidateVelocity velocity;
     double score;
+    ObjectiveScores scores;
   };
 
   // Scores every candidate in Vr with the objective function and returns the

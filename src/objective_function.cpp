@@ -63,6 +63,14 @@ double ObjectiveFunction::computeObjective(
     const CandidateVelocity& candidate
 )
 {
+    return computeScores(candidate).total;
+}
+
+
+ObjectiveScores ObjectiveFunction::computeScores(
+    const CandidateVelocity& candidate
+)
+{
     // -----------------------------------------
     // 1. HEADING SCORE
     // -----------------------------------------
@@ -150,9 +158,14 @@ double ObjectiveFunction::computeObjective(
     //      + beta  * Distance(v)
     //      + gamma * Velocity(v)
 
-    return (alpha_ * heading_score)
-         + (beta_ * distance_score)
-         + (gamma_ * velocity_score);
+    ObjectiveScores scores;
+    scores.heading = heading_score;
+    scores.distance = distance_score;
+    scores.velocity = velocity_score;
+    scores.total = (alpha_ * heading_score)
+                 + (beta_ * distance_score)
+                 + (gamma_ * velocity_score);
+    return scores;
 }
 
 } // namespace reactive_uav_navigation
