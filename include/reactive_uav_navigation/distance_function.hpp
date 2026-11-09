@@ -26,6 +26,16 @@
 //
 //     Distance(v) = max(0, (dist_min - R_drone) / (r_search - R_drone))
 //
+// Ray reuse
+// ---------
+// Candidates are scored many times per control period, but the environment
+// does not change within a period, so rays are not cast per candidate.
+// castRays() casts a fixed grid of directions (yaw x pitch, full sphere) once,
+// at the start of the period. Each ray of a candidate's fan is then answered
+// by looking up the nearest grid direction instead of calling RayCast again.
+// The grid rays are cast out to r_search, so a result is valid for any
+// shortened length L_ij <= r_search.
+//
 // Ray casting against the environment is provided by RayCast.
 //
 // Conventions
@@ -38,6 +48,7 @@
 #pragma once
 
 #include <cmath>
+#include <vector>
 #include <geometry_msgs/msg/vector3.hpp>
 
 #include "reactive_uav_navigation/ray_cast.hpp"
@@ -58,21 +69,32 @@ struct DistanceParams {
     double lambda_theta = 1.0;     // how strongly rays are shortened with vertical offset, in [0, 1]
     int numPsiBeams = 9;           // number of horizontal ray samples (more = finer, slower)
     int numThetaBeams = 5;         // number of vertical ray samples (more = finer, slower)
+    double rayGridStepYaw = M_PI / 18.0;    // yaw spacing of the grid cast by castRays() (rad); no coarser than the fan spacing
+    double rayGridStepPitch = M_PI / 18.0;  // pitch spacing of the grid cast by castRays() (rad); smaller = more accurate, more casts
 
     // Throws std::invalid_argument if the configuration is unusable.
     void validate() const;
 };
 
-// Computes Dist(v) for candidate velocities. Holds only configuration, so a
-// single instance can be shared across planning cycles. Methods are const
-// and keep no per-call state.
+// Computes Dist(v) for candidate velocities. Holds the configuration and the
+// ray results of the latest castRays(). Call castRays() once at the start of
+// every control period, then score any number of candidates against those
+// results. castRays() must not run concurrently with computeDistance() or
+// computeDistMin().
 class DistanceFunction {
 public:
     // Throws std::invalid_argument if `params` fails DistanceParams::validate().
     explicit DistanceFunction(const DistanceParams& params);
 
+    // Casts the grid of rays and stores the results, replacing those of the
+    // previous call. Call once per control period, before scoring candidates.
+    // The grid spans every yaw and pitch, spaced by rayGridStepYaw and
+    // rayGridStepPitch (rounded so the cells divide the range evenly).
+    void castRays();
+
     // Returns the normalized clearance term Distance(v) in [0, 1] for one
-    // candidate velocity.
+    // candidate velocity. Uses the results of the latest castRays(); throws
+    // std::logic_error if it has not been called yet.
     //
     //   position:     current drone position
     //   headingYaw:   yaw of the candidate velocity v (rad), e.g.
@@ -100,6 +122,8 @@ public:
     //
     // Public so callers can log the unnormalized clearance, e.g. for
     // navigation metrics or debugging. Arguments are as for computeDistance().
+    // Uses the results of the latest castRays(); throws std::logic_error if it
+    // has not been called yet.
     double computeDistMin(const geometry_msgs::msg::Vector3& position,
                           double headingYaw,
                           double headingPitch) const;
@@ -107,6 +131,19 @@ public:
 private:
     DistanceParams params_;
     RayCast rayCaster_;
+
+    // Results of the latest castRays(): distance of the first hit for each
+    // grid direction, or infinity if the ray hit nothing within r_search.
+    // Stored row by row, one row per pitch, one column per yaw.
+    std::vector<double> rayHitDistances_;
+    int numYawCells_ = 0;
+    int numPitchCells_ = 0;
+    double yawStep_ = 0.0;    // actual yaw spacing of the grid (rad)
+    double pitchStep_ = 0.0;  // actual pitch spacing of the grid (rad)
+
+    // Returns the stored hit distance of the grid direction nearest to
+    // `direction` (a unit vector), or infinity if that ray hit nothing.
+    double cachedHitDistance(const geometry_msgs::msg::Vector3& direction) const;
 
     // Returns the angular offset of sample `index` out of `count`, spaced
     // evenly over [-maxAngle, +maxAngle]. A single sample is the center ray

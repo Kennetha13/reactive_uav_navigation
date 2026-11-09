@@ -20,12 +20,52 @@ void DistanceParams::validate() const {
         throw std::invalid_argument(
             "beam half-angles must be non-negative");
     }
+    if (rayGridStepYaw <= 0.0 || rayGridStepPitch <= 0.0) {
+        throw std::invalid_argument(
+            "ray grid steps must be > 0");
+    }
 }
 
 DistanceFunction::DistanceFunction(const DistanceParams& params)
     : params_(params) {
     params_.validate();
     rayCaster_ = RayCast();
+}
+
+void DistanceFunction::castRays() {
+    // Round to whole cells so the grid wraps seamlessly in yaw and includes
+    // both poles in pitch.
+    numYawCells_ = std::max(
+        1, static_cast<int>(std::lround(2.0 * M_PI / params_.rayGridStepYaw)));
+    numPitchCells_ = std::max(
+        2, static_cast<int>(std::lround(M_PI / params_.rayGridStepPitch)) + 1);
+    yawStep_ = 2.0 * M_PI / numYawCells_;
+    pitchStep_ = M_PI / (numPitchCells_ - 1);
+
+    rayHitDistances_.assign(
+        static_cast<std::size_t>(numYawCells_) * numPitchCells_,
+        std::numeric_limits<double>::infinity());
+
+    for (int m = 0; m < numPitchCells_; ++m) {
+        const double pitch = -M_PI_2 + m * pitchStep_;
+        const std::size_t row = static_cast<std::size_t>(m) * numYawCells_;
+        // At a pole every yaw is the same direction: cast once, copy the rest.
+        const bool pole = (m == 0 || m == numPitchCells_ - 1);
+
+        for (int k = 0; k < numYawCells_; ++k) {
+            if (pole && k > 0) {
+                rayHitDistances_[row + k] = rayHitDistances_[row];
+                continue;
+            }
+            const geometry_msgs::msg::Vector3 direction =
+                rayDirectionFromAngles(-M_PI + k * yawStep_, pitch);
+            // Cast to the full search range; shorter fan rays reuse this.
+            const auto hit = rayCaster_.castRay(direction, params_.r_search);
+            if (hit) {
+                rayHitDistances_[row + k] = hit->distance;
+            }
+        }
+    }
 }
 
 double DistanceFunction::computeDistance(
@@ -53,6 +93,10 @@ double DistanceFunction::computeDistMin(
     const geometry_msgs::msg::Vector3& position,
     double headingYaw,
     double headingPitch) const {
+    if (rayHitDistances_.empty()) {
+        throw std::logic_error(
+            "castRays() must be called before computeDistMin()");
+    }
     double distMin = std::numeric_limits<double>::infinity();
 
     for (int i = 0; i < params_.numPsiBeams; ++i) {
@@ -75,13 +119,13 @@ double DistanceFunction::computeDistMin(
 
             const geometry_msgs::msg::Vector3 direction = rayDirectionFromAngles(
                 headingYaw + psi_i, headingPitch + theta_j);
-            const auto hit = rayCaster_.castRay(direction, L_ij);
+            const double hitDistance = cachedHitDistance(direction);
 
             // Only strictly shorter results count as obstacles; the epsilon
             // guards against floating-point noise at the search limit.
             constexpr double kEps = 1e-9;
-            if (hit && hit->distance < L_ij - kEps) {
-                distMin = std::min(distMin, hit->distance);
+            if (hitDistance < L_ij - kEps) {
+                distMin = std::min(distMin, hitDistance);
             }
         }
     }
@@ -92,6 +136,20 @@ double DistanceFunction::computeDistMin(
         distMin = params_.r_search;
     }
     return distMin;
+}
+
+double DistanceFunction::cachedHitDistance(
+    const geometry_msgs::msg::Vector3& direction) const {
+    // Convert back to yaw and pitch so directions past a pole or outside
+    // [-pi, pi) land on the right cell.
+    const double yaw = std::atan2(direction.y, direction.x);
+    const double pitch = std::asin(std::clamp(direction.z, -1.0, 1.0));
+    const int k = static_cast<int>(std::lround((yaw + M_PI) / yawStep_)) %
+                  numYawCells_;
+    const int m = std::clamp(
+        static_cast<int>(std::lround((pitch + M_PI_2) / pitchStep_)),
+        0, numPitchCells_ - 1);
+    return rayHitDistances_[static_cast<std::size_t>(m) * numYawCells_ + k];
 }
 
 double DistanceFunction::sampleOffset(
