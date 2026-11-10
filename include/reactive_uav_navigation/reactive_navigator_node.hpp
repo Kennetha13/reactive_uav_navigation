@@ -28,11 +28,6 @@ private:
 
   void control_loop();
 
-  void depth_image_callback(const sensor_msgs::msg::Image::SharedPtr msg);
-
-  void camera_info_callback(
-    const sensor_msgs::msg::CameraInfo::SharedPtr msg);
-
   // Subscription and variables for handling global path
   rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr path_subscription_;
   nav_msgs::msg::Path global_path_;
@@ -43,11 +38,7 @@ private:
   std::shared_ptr<DroneState> drone_state_;
 
   DepthRayProcessor depth_ray_processor_;
-  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr depth_subscription_;
-  rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_subscription_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr obstacle_distance_publisher_;
-  std::string depth_topic_;
-  std::string camera_info_topic_;
   double depth_ray_max_distance_{15.0};
   double ray_direction_x_{0.0};
   double ray_direction_y_{0.0};

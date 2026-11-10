@@ -3,7 +3,9 @@
 
 namespace reactive_uav_navigation {
 
-ReactiveNavigator::ReactiveNavigator() : Node("reactive_navigator")
+ReactiveNavigator::ReactiveNavigator()
+: Node("reactive_navigator"),
+  depth_ray_processor_(this)
 {
 // QoS (Quality of Service) to keep history queue of last 10 messages
 auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
@@ -16,10 +18,6 @@ path_subscription_ = this->create_subscription<nav_msgs::msg::Path>(
 );
 RCLCPP_INFO(this->get_logger(), "Listening for global path...");
 
-depth_topic_ = this->declare_parameter<std::string>(
-  "depth_topic", "/depth_camera");
-camera_info_topic_ = this->declare_parameter<std::string>(
-  "camera_info_topic", "/camera_info");
 depth_ray_max_distance_ = this->declare_parameter<double>(
   "depth_ray_max_distance", 15.0);
 ray_direction_x_ = this->declare_parameter<double>(
@@ -28,28 +26,6 @@ ray_direction_y_ = this->declare_parameter<double>(
   "ray_direction_y", 0.0);
 ray_direction_z_ = this->declare_parameter<double>(
   "ray_direction_z", 1.0);
-
-rclcpp::QoS camera_qos(rclcpp::KeepLast(10));
-camera_qos.reliable();
-camera_qos.durability_volatile();
-
-depth_subscription_ = this->create_subscription<sensor_msgs::msg::Image>(
-  depth_topic_,
-  camera_qos,
-  std::bind(
-    &ReactiveNavigator::depth_image_callback,
-    this,
-    std::placeholders::_1)
-);
-
-camera_info_subscription_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-  camera_info_topic_,
-  camera_qos,
-  std::bind(
-    &ReactiveNavigator::camera_info_callback,
-    this,
-    std::placeholders::_1)
-);
 
 obstacle_distance_publisher_ = this->create_publisher<std_msgs::msg::Float32>(
   "/obstacle_distance_forward", 10);
@@ -65,18 +41,6 @@ control_timer_ = this->create_wall_timer(
 	std::bind(&ReactiveNavigator::control_loop, this)
 );
 RCLCPP_INFO(this->get_logger(), "Control loop initialized...");
-}
-
-void ReactiveNavigator::depth_image_callback(
-  const sensor_msgs::msg::Image::SharedPtr msg)
-{
-  depth_ray_processor_.update_depth_image(msg);
-}
-
-void ReactiveNavigator::camera_info_callback(
-  const sensor_msgs::msg::CameraInfo::SharedPtr msg)
-{
-  depth_ray_processor_.update_camera_info(msg);
 }
 
 // Accessor method for the latest global path

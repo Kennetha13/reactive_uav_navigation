@@ -3,8 +3,38 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <functional>
 
 namespace reactive_uav_navigation {
+
+DepthRayProcessor::DepthRayProcessor(rclcpp::Node *node)
+{
+  const auto depth_topic = node->declare_parameter<std::string>(
+    "depth_topic", "/depth_camera");
+  const auto camera_info_topic = node->declare_parameter<std::string>(
+    "camera_info_topic", "/camera_info");
+
+  rclcpp::QoS camera_qos(rclcpp::KeepLast(10));
+  camera_qos.reliable();
+  camera_qos.durability_volatile();
+
+  depth_subscription_ = node->create_subscription<sensor_msgs::msg::Image>(
+    depth_topic,
+    camera_qos,
+    std::bind(
+      &DepthRayProcessor::update_depth_image,
+      this,
+      std::placeholders::_1));
+
+  camera_info_subscription_ =
+    node->create_subscription<sensor_msgs::msg::CameraInfo>(
+      camera_info_topic,
+      camera_qos,
+      std::bind(
+        &DepthRayProcessor::update_camera_info,
+        this,
+        std::placeholders::_1));
+}
 
 std::optional<float> DepthRayProcessor::castRay(
   const geometry_msgs::msg::Vector3 &direction,
@@ -93,7 +123,7 @@ std::optional<float> DepthRayProcessor::castRay(
 }
 
 void DepthRayProcessor::update_depth_image(
-  const sensor_msgs::msg::Image::SharedPtr &image)
+  sensor_msgs::msg::Image::ConstSharedPtr image)
 {
   if (!image) {
     return;
@@ -105,7 +135,7 @@ void DepthRayProcessor::update_depth_image(
 }
 
 void DepthRayProcessor::update_camera_info(
-  const sensor_msgs::msg::CameraInfo::SharedPtr &camera_info)
+  sensor_msgs::msg::CameraInfo::ConstSharedPtr camera_info)
 {
   if (!camera_info) {
     return;
