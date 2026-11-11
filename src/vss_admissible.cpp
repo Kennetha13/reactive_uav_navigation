@@ -1,4 +1,4 @@
-#include "reactive_uav_navigation/admissible_velocities.hpp"
+#include "reactive_uav_navigation/vss_admissible.hpp"
 
 #include <cmath>
 #include <stdexcept>
@@ -53,11 +53,11 @@ bool AdmissibleVelocities::isAdmissible(const CandidateVelocity& v, double dCol)
     return speed <= maxAdmissibleSpeed(dCol);
 }
 
-std::vector<AdmissibleCandidate> AdmissibleVelocities::filterAdmissible(
+std::vector<CandidateVelocity> AdmissibleVelocities::filterAdmissible(
     const std::vector<CandidateVelocity>& candidates,
     const DronePose& current,
     const DistanceFunction& distanceFunction) const {
-    std::vector<AdmissibleCandidate> admissible;
+    std::vector<CandidateVelocity> admissible;
     admissible.reserve(candidates.size());
 
     for (const CandidateVelocity& v : candidates) {
@@ -70,7 +70,7 @@ std::vector<AdmissibleCandidate> AdmissibleVelocities::filterAdmissible(
             predicted.position, predicted.yaw, pitch);
 
         if (isAdmissible(v, dCol)) {
-            admissible.push_back(AdmissibleCandidate{v, predicted, dCol});
+            admissible.push_back(v);
         }
     }
     return admissible;
