@@ -20,7 +20,8 @@ find_package(mavros_msgs REQUIRED)
 add_executable(reactive_navigator_node
   src/reactive_navigator_node_main.cpp
   src/reactive_navigator_node.cpp
-  src/vss_admissible.cpp
+  src/depth_ray.cpp
+  src/admissible_velocities.cpp
   src/drone_state.cpp
   src/distance_function.cpp
   src/heading_function.cpp
