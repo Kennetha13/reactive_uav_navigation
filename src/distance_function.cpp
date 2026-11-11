@@ -22,10 +22,10 @@ void DistanceParams::validate() const {
     }
 }
 
-DistanceFunction::DistanceFunction(const DistanceParams& params)
-    : params_(params) {
+DistanceFunction::DistanceFunction(
+    rclcpp::Node* node, const DistanceParams& params)
+    : params_(params), rayCaster_(node) {
     params_.validate();
-    rayCaster_ = RayCast();
 }
 
 double DistanceFunction::computeDistance(
@@ -50,7 +50,7 @@ double DistanceFunction::computeDistance(
 }
 
 double DistanceFunction::computeDistMin(
-    const geometry_msgs::msg::Vector3& position,
+    const geometry_msgs::msg::Vector3&,
     double headingYaw,
     double headingPitch) const {
     double distMin = std::numeric_limits<double>::infinity();
@@ -80,8 +80,8 @@ double DistanceFunction::computeDistMin(
             // Only strictly shorter results count as obstacles; the epsilon
             // guards against floating-point noise at the search limit.
             constexpr double kEps = 1e-9;
-            if (hit && hit->distance < L_ij - kEps) {
-                distMin = std::min(distMin, hit->distance);
+            if (hit && hit.value() < L_ij - kEps) {
+                distMin = std::min(distMin, static_cast<double>(hit.value()));
             }
         }
     }

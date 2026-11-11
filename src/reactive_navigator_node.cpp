@@ -1,8 +1,10 @@
-#include<reactive_uav_navigation/reactive_navigator_node.hpp>
+#include <functional>
+#include <reactive_uav_navigation/reactive_navigator_node.hpp>
 
 namespace reactive_uav_navigation {
 
-ReactiveNavigator::ReactiveNavigator() : Node("reactive_navigator")
+ReactiveNavigator::ReactiveNavigator()
+: Node("reactive_navigator")
 {
 // QoS (Quality of Service) to keep history queue of last 10 messages
 auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
@@ -15,6 +17,18 @@ path_subscription_ = this->create_subscription<nav_msgs::msg::Path>(
 );
 RCLCPP_INFO(this->get_logger(), "Listening for global path...");
 
+depth_ray_max_distance_ = this->declare_parameter<double>(
+  "depth_ray_max_distance", 15.0);
+ray_direction_x_ = this->declare_parameter<double>(
+  "ray_direction_x", 0.0);
+ray_direction_y_ = this->declare_parameter<double>(
+  "ray_direction_y", 0.0);
+ray_direction_z_ = this->declare_parameter<double>(
+  "ray_direction_z", 1.0);
+
+obstacle_distance_publisher_ = this->create_publisher<std_msgs::msg::Float32>(
+  "/obstacle_distance_forward", 10);
+
 // Create drone state object
 drone_state_ = std::make_shared<DroneState>(this);
 
@@ -22,7 +36,8 @@ drone_state_ = std::make_shared<DroneState>(this);
 //   distance_function_  : ray fan used by Va (vss_admissible) to find d_col
 //   vss_collector_      : Vr = Vs ∩ Vd ∩ Va, the candidate velocities to score
 //   objective_function_ : G(v) = alpha*Heading + beta*Dist + gamma*Vel for one candidate
-distance_function_ = std::make_unique<DistanceFunction>(DistanceParams{});
+distance_function_ = std::make_unique<DistanceFunction>(
+  this, DistanceParams{});
 vss_collector_ = std::make_unique<VssCollector>(this);
 // No path has arrived yet, so start with a placeholder goal; control_loop()
 // sets the real one (the current waypoint) every cycle with setGoal().

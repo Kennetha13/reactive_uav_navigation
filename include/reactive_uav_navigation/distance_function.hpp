@@ -26,7 +26,7 @@
 //
 //     Distance(v) = max(0, (dist_min - R_drone) / (r_search - R_drone))
 //
-// Ray casting against the environment is provided by RayCast.
+// Ray casting against the environment is provided by DepthRayProcessor.
 //
 // Conventions
 // -----------
@@ -40,7 +40,7 @@
 #include <cmath>
 #include <geometry_msgs/msg/vector3.hpp>
 
-#include "reactive_uav_navigation/ray_cast.hpp"
+#include "reactive_uav_navigation/depth_ray.hpp"
 
 namespace reactive_uav_navigation {
 
@@ -63,13 +63,13 @@ struct DistanceParams {
     void validate() const;
 };
 
-// Computes Dist(v) for candidate velocities. Holds only configuration, so a
-// single instance can be shared across planning cycles. Methods are const
-// and keep no per-call state.
+// Computes Dist(v) for candidate velocities. Owns the depth-ray processor
+// used to subscribe to depth images and camera information.
 class DistanceFunction {
 public:
-    // Throws std::invalid_argument if `params` fails DistanceParams::validate().
-    explicit DistanceFunction(const DistanceParams& params);
+    // The node must outlive this object. Throws std::invalid_argument if
+    // `params` fails DistanceParams::validate().
+    DistanceFunction(rclcpp::Node* node, const DistanceParams& params);
 
     // Returns the normalized clearance term Distance(v) in [0, 1] for one
     // candidate velocity.
@@ -106,7 +106,7 @@ public:
 
 private:
     DistanceParams params_;
-    RayCast rayCaster_;
+    DepthRayProcessor rayCaster_;
 
     // Returns the angular offset of sample `index` out of `count`, spaced
     // evenly over [-maxAngle, +maxAngle]. A single sample is the center ray

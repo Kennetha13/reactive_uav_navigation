@@ -35,7 +35,7 @@ ObjectiveFunction::ObjectiveFunction(
         std::make_unique<HeadingFunction>(drone_state_, goal);
 
     distance_function_ =
-        std::make_unique<DistanceFunction>(DistanceParams{});
+        std::make_unique<DistanceFunction>(node, DistanceParams{});
 
     velocity_function_ =
         std::make_unique<VelocityFunction>(node);
