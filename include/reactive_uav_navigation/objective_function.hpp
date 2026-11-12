@@ -67,7 +67,8 @@ public:
     ObjectiveFunction(
         rclcpp::Node* node,
         const DroneState& drone_state,
-        const geometry_msgs::msg::Point& goal
+        const geometry_msgs::msg::Point& goal,
+        DistanceFunction& distance_function
     );
 
     // Defined in objective_function.cpp, where HeadingFunction, DistanceFunction
@@ -92,8 +93,11 @@ private:
 
     // Scoring functions
     std::unique_ptr<HeadingFunction> heading_function_;
-    std::unique_ptr<DistanceFunction> distance_function_;
     std::unique_ptr<VelocityFunction> velocity_function_;
+
+    // Shared with the velocity admissibility check so the depth processor and
+    // its subscriptions are initialized only once.
+    DistanceFunction& distance_function_;
 
     // Reference to existing drone state
     const DroneState& drone_state_;

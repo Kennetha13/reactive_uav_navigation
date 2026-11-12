@@ -26,16 +26,15 @@ namespace reactive_uav_navigation
 ObjectiveFunction::ObjectiveFunction(
     rclcpp::Node* node,
     const DroneState& drone_state,
-    const geometry_msgs::msg::Point& goal
+    const geometry_msgs::msg::Point& goal,
+    DistanceFunction& distance_function
 )
-    : drone_state_(drone_state)
+    : distance_function_(distance_function),
+      drone_state_(drone_state)
 {
     // Instantiate the three scoring functions.
     heading_function_ =
         std::make_unique<HeadingFunction>(drone_state_, goal);
-
-    distance_function_ =
-        std::make_unique<DistanceFunction>(node, DistanceParams{});
 
     velocity_function_ =
         std::make_unique<VelocityFunction>(node);
@@ -110,7 +109,7 @@ ObjectiveScores ObjectiveFunction::computeScores(
     const double predicted_pitch = std::atan2(candidate.vz, std::abs(candidate.vx));
 
     double distance_score =
-    distance_function_->computeDistance(
+    distance_function_.computeDistance(
         predicted_position,
         predicted_yaw,
         predicted_pitch);

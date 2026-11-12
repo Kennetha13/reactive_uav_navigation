@@ -3,7 +3,7 @@
 
 VelocityFunction::VelocityFunction(rclcpp::Node *node) : node_(node){
     param_client_ = node_->create_client<mavros_msgs::srv::ParamGet>("/mavros/param/get");
-    retry_timer_ = node_->create_wall_timer(std::chrono::seconds(1), [this]() {
+    retry_timer_ = node_->create_wall_timer(std::chrono::seconds(10), [this]() {
         getMaxVelocity();
     });
 }
@@ -11,6 +11,7 @@ VelocityFunction::VelocityFunction(rclcpp::Node *node) : node_(node){
 void VelocityFunction::getMaxVelocity() {
     if (!param_client_->service_is_ready()) {
         // MAVROS not available
+        RCLCPP_WARN(node_->get_logger(), "MAVROS not available. Will retry.");
         return;
     }
 
@@ -25,6 +26,9 @@ void VelocityFunction::getMaxVelocity() {
                 vel_max_x_ = response->value.real;
                 retry_timer_->cancel();
                 RCLCPP_INFO(node_->get_logger(), "vel_max_x_ = %.2f m/s", vel_max_x_.load());
+            }
+            else {
+                RCLCPP_WARN(node_->get_logger(), "Failed to get MPC_XY_VEL_MAX from MAVROS. Will retry.");
             }
         });
 }

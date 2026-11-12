@@ -31,6 +31,6 @@ class VelocityFunction {
         rclcpp::Client<mavros_msgs::srv::ParamGet>::SharedPtr param_client_;
         rclcpp::TimerBase::SharedPtr retry_timer_;
 
-        std::atomic<double> vel_max_x_{0.0};
+        std::atomic<double> vel_max_x_{12.0};
 };
 #endif

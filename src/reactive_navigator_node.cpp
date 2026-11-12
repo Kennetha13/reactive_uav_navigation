@@ -17,18 +17,6 @@ path_subscription_ = this->create_subscription<nav_msgs::msg::Path>(
 );
 RCLCPP_INFO(this->get_logger(), "Listening for global path...");
 
-depth_ray_max_distance_ = this->declare_parameter<double>(
-  "depth_ray_max_distance", 15.0);
-ray_direction_x_ = this->declare_parameter<double>(
-  "ray_direction_x", 0.0);
-ray_direction_y_ = this->declare_parameter<double>(
-  "ray_direction_y", 0.0);
-ray_direction_z_ = this->declare_parameter<double>(
-  "ray_direction_z", 1.0);
-
-obstacle_distance_publisher_ = this->create_publisher<std_msgs::msg::Float32>(
-  "/obstacle_distance_forward", 10);
-
 // Create drone state object
 drone_state_ = std::make_shared<DroneState>(this);
 
@@ -41,7 +29,8 @@ distance_function_ = std::make_unique<DistanceFunction>(
 vss_collector_ = std::make_unique<VssCollector>(this);
 // No path has arrived yet, so start with a placeholder goal; control_loop()
 // sets the real one (the current waypoint) every cycle with setGoal().
-objective_function_ = std::make_unique<ObjectiveFunction>(this, *drone_state_, geometry_msgs::msg::Point{});
+objective_function_ = std::make_unique<ObjectiveFunction>(
+  this, *drone_state_, geometry_msgs::msg::Point{}, *distance_function_);
 
 // Publisher for drone movement commands
 cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/mavros/setpoint_velocity/cmd_vel_unstamped", 10);
@@ -123,7 +112,8 @@ double current_yaw = drone_state_->get_yaw();
 // 1. Advance past any waypoints already reached
 while (current_index_ < current_path.poses.size()) {
 	const auto &p = current_path.poses[current_index_].pose.position;
-	if (std::hypot(p.x - current_x, p.y - current_y) >= 0.3) break;
+	if (std::hypot(p.x - current_x, p.y - current_y,
+		p.z - current_position.z) >= 0.3) break;
 	RCLCPP_INFO(get_logger(), "Reached waypoint %zu, moving to next.", current_index_);
 	++current_index_;
 }
@@ -138,6 +128,10 @@ if (current_index_ >= current_path.poses.size()) {
 }
 
 const auto &target = current_path.poses[current_index_].pose.position;
+const double distance_to_target = std::hypot(
+	target.x - current_x,
+	target.y - current_y,
+	target.z - current_position.z);
 
 // 2. Candidate velocities Vr = Vs ∩ Vd ∩ Va
 //    Pose in the world frame (ENU). Current velocity in the drone-centric frame
@@ -191,10 +185,12 @@ publishVelocity(best->velocity, current_yaw);
 
 // Verify the loop is functioning
 RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 500,
-"[%s] idx=%zu/%zu pos=(%.2f,%.2f,%.2f) target=(%.2f,%.2f,%.2f) yaw=%.2f |Vr|=%zu best=(vx %.2f, vz %.2f, wz %.2f) G=%.3f",
+"[%s] idx=%zu/%zu pos=(%.2f,%.2f,%.2f) target=(%.2f,%.2f,%.2f) dist_to_target=%.2fm yaw=%.2f |Vr|=%zu best=(vx %.2f, vz %.2f, wz %.2f) H=%.3f D=%.3f V=%.3f G=%.3f ray_min=%.2fm",
 toString(nav_state_.state()), current_index_, current_path.poses.size(), current_x, current_y, current_position.z,
-target.x, target.y, target.z, current_yaw, vr.size(),
-best->velocity.vx, best->velocity.vz, best->velocity.wz, best->score);
+target.x, target.y, target.z, distance_to_target, current_yaw, vr.size(),
+best->velocity.vx, best->velocity.vz, best->velocity.wz,
+best->scores.heading, best->scores.distance, best->scores.velocity,
+best->score, best->ray_cast_distance);
 }
 
 std::optional<ReactiveNavigator::ScoredVelocity> ReactiveNavigator::selectBestVelocity(
@@ -216,9 +212,30 @@ std::optional<ReactiveNavigator::ScoredVelocity> ReactiveNavigator::selectBestVe
 			continue;
 		}
 		if (!best || g > best->score) {
-			best = ScoredVelocity{v, g, scores};
+			best = ScoredVelocity{v, g, scores, 0.0};
 		}
 	}
+
+	if (best) {
+		best->scores = objective_function_->computeScores(best->velocity);
+		best->score = best->scores.total;
+
+		const auto position = drone_state_->get_current_position();
+		const double predicted_yaw =
+			drone_state_->get_yaw() + best->velocity.wz * CONTROL_PERIOD;
+		geometry_msgs::msg::Vector3 predicted_position;
+		predicted_position.x = position.x +
+			best->velocity.vx * CONTROL_PERIOD * std::cos(predicted_yaw);
+		predicted_position.y = position.y +
+			best->velocity.vx * CONTROL_PERIOD * std::sin(predicted_yaw);
+		predicted_position.z = position.z +
+			best->velocity.vz * CONTROL_PERIOD;
+		const double predicted_pitch = std::atan2(
+			best->velocity.vz, std::abs(best->velocity.vx));
+		best->ray_cast_distance = distance_function_->computeDistMin(
+			predicted_position, predicted_yaw, predicted_pitch);
+	}
+
 	return best;
 }
 
