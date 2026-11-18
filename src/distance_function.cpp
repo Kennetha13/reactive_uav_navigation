@@ -7,6 +7,11 @@
 namespace reactive_uav_navigation {
 
 void DistanceParams::validate() const {
+    // computeProximity() divides by (keep_distance - R_drone).
+    if (keep_distance <= R_drone) {
+        throw std::invalid_argument(
+            "keep_distance must be strictly greater than R_drone");
+    }
     // The normalization divides by (r_search - R_drone).
     if (r_search <= R_drone) {
         throw std::invalid_argument(
@@ -22,10 +27,43 @@ void DistanceParams::validate() const {
     }
 }
 
-DistanceFunction::DistanceFunction(
-    rclcpp::Node* node, const DistanceParams& params)
-    : params_(params), rayCaster_(node) {
+DistanceFunction::DistanceFunction(const DistanceParams& params)
+    : params_(params) {
     params_.validate();
+}
+
+void DistanceFunction::setObstaclePoints(
+    const std::vector<geometry_msgs::msg::Vector3>& points) {
+    rayCaster_.setPoints(points);
+}
+
+void DistanceFunction::setVisibleSector(double center_yaw, double half_angle, double half_pitch) {
+    has_visible_sector_ = true;
+    visible_center_yaw_ = center_yaw;
+    visible_half_angle_ = half_angle;
+    visible_half_pitch_ = half_pitch;
+}
+
+bool DistanceFunction::isDirectionVisible(double yaw) const {
+    if (!has_visible_sector_) {
+        return true;
+    }
+
+    // a view with no width sees nothing at all
+    if (visible_half_angle_ <= 0.0) {
+        return false;
+    }
+
+    // angle between the direction and the middle of the view, wrapped into [-pi, pi]
+    double difference = yaw - visible_center_yaw_;
+    while (difference > M_PI) {
+        difference = difference - 2.0 * M_PI;
+    }
+    while (difference < -M_PI) {
+        difference = difference + 2.0 * M_PI;
+    }
+
+    return std::fabs(difference) <= visible_half_angle_;
 }
 
 double DistanceFunction::computeDistance(
@@ -35,6 +73,36 @@ double DistanceFunction::computeDistance(
     const double distMin = computeDistMin(
         position, headingYaw, headingPitch);
     return normalize(distMin);
+}
+
+double DistanceFunction::computeDistanceUpTo(
+    const geometry_msgs::msg::Vector3& position,
+    double headingYaw,
+    double headingPitch,
+    double limit) const {
+    const double distMin = computeDistMin(
+        position, headingYaw, headingPitch);
+
+    // the closest obstacle is behind the limit, so the way is clear
+    if (distMin > limit) {
+        return 1.0;
+    }
+    return normalize(distMin);
+}
+
+double DistanceFunction::computeProximity(
+    const geometry_msgs::msg::Vector3& position) const {
+    const double nearest = rayCaster_.nearestPointDistance(position);
+
+    // far enough from everything
+    if (nearest >= params_.keep_distance) {
+        return 1.0;
+    }
+
+    // from 1 at keep_distance down to 0 at the drone's radius
+    const double score =
+        (nearest - params_.R_drone) / (params_.keep_distance - params_.R_drone);
+    return std::max(0.0, score);
 }
 
 double DistanceFunction::computeDistance(
@@ -50,9 +118,28 @@ double DistanceFunction::computeDistance(
 }
 
 double DistanceFunction::computeDistMin(
-    const geometry_msgs::msg::Vector3&,
+    const geometry_msgs::msg::Vector3& position,
     double headingYaw,
     double headingPitch) const {
+    // the camera cannot see this way, so nothing is known: treat it as blocked
+    if (!isDirectionVisible(headingYaw)) {
+        return 0.0;
+    }
+
+    if (has_visible_sector_) {
+        // straight up or down keeps the drone over the same spot, so look
+        // level ahead, where the camera does have a view
+        const double straight_up = M_PI_2 - 0.01;
+        if (std::fabs(headingPitch) > straight_up) {
+            headingPitch = 0.0;
+        }
+
+        // climbing or descending more steeply than the camera can see
+        if (std::fabs(headingPitch) > visible_half_pitch_) {
+            return 0.0;
+        }
+    }
+
     double distMin = std::numeric_limits<double>::infinity();
 
     for (int i = 0; i < params_.numPsiBeams; ++i) {
@@ -75,13 +162,13 @@ double DistanceFunction::computeDistMin(
 
             const geometry_msgs::msg::Vector3 direction = rayDirectionFromAngles(
                 headingYaw + psi_i, headingPitch + theta_j);
-            const auto hit = rayCaster_.castRay(direction, L_ij);
+            const auto hit = rayCaster_.castRay(position, direction, L_ij);
 
             // Only strictly shorter results count as obstacles; the epsilon
             // guards against floating-point noise at the search limit.
             constexpr double kEps = 1e-9;
-            if (hit && hit.value() < L_ij - kEps) {
-                distMin = std::min(distMin, static_cast<double>(hit.value()));
+            if (hit && hit->distance < L_ij - kEps) {
+                distMin = std::min(distMin, hit->distance);
             }
         }
     }

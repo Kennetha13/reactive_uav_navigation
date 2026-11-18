@@ -13,6 +13,9 @@ void AdmissibleParams::validate() const {
     if (dt <= 0.0) {
         throw std::invalid_argument("dt must be > 0");
     }
+    if (drone_radius < 0.0) {
+        throw std::invalid_argument("drone_radius must be non-negative");
+    }
     if (safety_margin < 0.0) {
         throw std::invalid_argument("safety_margin must be non-negative");
     }
@@ -35,7 +38,8 @@ DronePose AdmissibleVelocities::predictPose(const DronePose& current,
 }
 
 double AdmissibleVelocities::maxAdmissibleSpeed(double dCol) const {
-    const double clearance = dCol - params_.safety_margin;
+    // d_col is measured from the center of the drone, so take off its radius
+    const double clearance = dCol - params_.drone_radius - params_.safety_margin;
     if (clearance <= 0.0) {
         return 0.0;
     }

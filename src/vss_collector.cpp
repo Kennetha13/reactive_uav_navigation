@@ -5,6 +5,12 @@
 #include <stdexcept>
 #include <utility>
 
+#ifndef VSS_NO_ROS
+#include <rclcpp/rclcpp.hpp>
+
+#include "reactive_uav_navigation/px4_param_reader.hpp"
+#endif
+
 namespace reactive_uav_navigation {
 
 // Calculate Vs ∩ Vd (per-axis highest minimum, lowest maximum)
@@ -50,10 +56,24 @@ std::unique_ptr<MaximumVelocitiesSpace> requireMaximum(std::unique_ptr<MaximumVe
 }  // namespace
 
 #ifndef VSS_NO_ROS
+namespace {
+
+// the braking check of Va uses the same drone radius as the rest of the node,
+// plus a margin. With the margin the drone stops about 0.8 m from a wall,
+// which is far enough back that it can still turn and fly along it.
+AdmissibleParams readAdmissibleParams(rclcpp::Node* node) {
+    AdmissibleParams params;
+    params.drone_radius = rosDoubleParam(node, "drone_radius", params.drone_radius);
+    params.safety_margin = rosDoubleParam(node, "vss.safety_margin", 0.5);
+    return params;
+}
+
+}  // namespace
+
 VssCollector::VssCollector(rclcpp::Node* node)
     : VssCollector(std::make_unique<MaximumVelocitiesSpace>(node),
                    std::make_unique<DynamicWindow>(node, AdmissibleParams{}.dt),
-                   AdmissibleParams{}) {}
+                   readAdmissibleParams(node)) {}
 #endif
 
 VssCollector::VssCollector(std::unique_ptr<MaximumVelocitiesSpace> maximum,

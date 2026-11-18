@@ -1,0 +1,4 @@
+# scripts run under Linux, so they keep Linux line endings on every checkout
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf

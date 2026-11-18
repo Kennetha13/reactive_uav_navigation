@@ -5,7 +5,8 @@
 #include <set>
 #include <utility>
 
-#include <mavros_msgs/srv/param_get.hpp>
+#include <rcl_interfaces/msg/parameter_type.hpp>
+#include <rcl_interfaces/srv/get_parameters.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 namespace reactive_uav_navigation {
@@ -20,7 +21,8 @@ double rosDoubleParam(rclcpp::Node* node, const std::string& name, double defaul
 struct Px4ParamReader::Impl {
     Impl(rclcpp::Node* node, const std::vector<std::string>& names, Callback on_value)
         : node_(node), on_value_(std::move(on_value)), pending_(names.begin(), names.end()) {
-        client_ = node_->create_client<mavros_msgs::srv::ParamGet>("/mavros/param/get");
+        // MAVROS offers the PX4 parameters as ROS parameters of its /mavros/param node
+        client_ = node_->create_client<rcl_interfaces::srv::GetParameters>("/mavros/param/get_parameters");
         retry_timer_ = node_->create_wall_timer(std::chrono::seconds(1), [this]() {
             requestPending();
         });
@@ -43,14 +45,26 @@ struct Px4ParamReader::Impl {
         }
 
         for (const std::string& name : to_request) {
-            auto request = std::make_shared<mavros_msgs::srv::ParamGet::Request>();
-            request->param_id = name;
+            auto request = std::make_shared<rcl_interfaces::srv::GetParameters::Request>();
+            request->names.push_back(name);
 
             client_->async_send_request(
                 request,
-                [this, name](rclcpp::Client<mavros_msgs::srv::ParamGet>::SharedFuture future) {
+                [this, name](rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedFuture future) {
                     auto response = future.get();
-                    const bool ok = response->success && response->value.real > 0.0;
+
+                    // the value is a double or an integer, or not set while
+                    // MAVROS has not received the parameter from PX4 yet
+                    double value = 0.0;
+                    if (!response->values.empty()) {
+                        if (response->values[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE) {
+                            value = response->values[0].double_value;
+                        }
+                        if (response->values[0].type == rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER) {
+                            value = static_cast<double>(response->values[0].integer_value);
+                        }
+                    }
+                    const bool ok = value > 0.0;
 
                     bool all_received = false;
                     {
@@ -63,7 +77,7 @@ struct Px4ParamReader::Impl {
                     }
 
                     if (ok) {
-                        on_value_(name, response->value.real);
+                        on_value_(name, value);
                     } else {
                         RCLCPP_WARN_THROTTLE(
                             node_->get_logger(), *node_->get_clock(), 10000,
@@ -78,7 +92,7 @@ struct Px4ParamReader::Impl {
 
     rclcpp::Node* node_;
     Callback on_value_;
-    rclcpp::Client<mavros_msgs::srv::ParamGet>::SharedPtr client_;
+    rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr client_;
     rclcpp::TimerBase::SharedPtr retry_timer_;
 
     std::mutex mutex_;

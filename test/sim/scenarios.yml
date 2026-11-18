@@ -1,0 +1,213 @@
+# Scenarios for the automated Gazebo tests (test/sim/run_sim_tests.sh).
+#
+# Every scenario is a map of its own. The start (0, 0), where the drone
+# spawns, is in the middle of a room of 8 m by 8 m. A corridor, 4 m wide,
+# leads out of the room and around one or more turns to the goal. The path
+# gives the corner points of the corridor. In test6 and test8
+# the corridor is 8 m wide, so that the drone has room to go around the blocks
+# in it. In test9 the corridor is closed and the goal lies behind its end,
+# the drone must report BLOCKED there.
+#
+# Every scenario is flown by itself:
+#   1. the drone is at the start, with nothing near it
+#   2. the walls of the scenario are put into the world
+#   3. the path is published and the drone flies it
+#   4. the walls are taken away again and the drone goes back to the start,
+#      PX4 flies this part itself with its return mode
+#
+# So no scenario depends on the one before it, and the drone never starts on
+# top of a wall or close to one.
+
+# where the drone spawns and where every scenario starts, [x, y, z] in m
+start: [0.0, 0.0, 2.0]
+
+# no wall of a scenario may be closer to the start than this (m). The test
+# refuses to run a scenario that breaks this rule.
+min_start_clearance: 3.0
+
+# the drone counts as touching a wall when its center is closer than this (m)
+drone_radius: 0.3
+
+# name:    used in the report and for the track file
+# about:   the way the corridor leads
+# walls:   the walls of the map seen from above (m), all are 15 m tall. A wall
+#          can have an angle in degrees: it is then turned about its center
+#          by that much, counter-clockwise seen from above. A wall with
+#          appears_at is not there at the start: it is put into the world
+#          during the flight, when the drone comes that close to it (m).
+# path:   waypoints as [x, y, z] in the map frame, the last one is the goal
+# expect:  navigation state the flight must end in
+# timeout: longest the flight to the goal may take (s)
+scenarios:
+  # right, up
+  - name: test1
+    about: out of the room to the east, then one turn to the north
+    walls:
+      - {name: w1, x_min: -5.0, x_max: 5.0, y_min: -5.0, y_max: -4.0}
+      - {name: w2, x_min: -5.0, x_max: -4.0, y_min: -4.0, y_max: 4.0}
+      - {name: w3, x_min: 4.0, x_max: 5.0, y_min: -4.0, y_max: -3.0}
+      - {name: w4, x_min: 4.0, x_max: 13.0, y_min: -3.0, y_max: -2.0}
+      - {name: w5, x_min: 12.0, x_max: 13.0, y_min: -2.0, y_max: 13.0}
+      - {name: w6, x_min: 4.0, x_max: 8.0, y_min: 2.0, y_max: 3.0}
+      - {name: w7, x_min: 4.0, x_max: 5.0, y_min: 3.0, y_max: 4.0}
+      - {name: w8, x_min: 7.0, x_max: 8.0, y_min: 3.0, y_max: 13.0}
+      - {name: w9, x_min: -5.0, x_max: 5.0, y_min: 4.0, y_max: 5.0}
+      - {name: w10, x_min: 7.0, x_max: 13.0, y_min: 13.0, y_max: 14.0}
+    path: [[0.0, 0.0, 2.0], [10.0, 0.0, 2.0], [10.0, 10.0, 2.0]]
+    expect: GOAL_REACHED
+    timeout: 240
+
+  # down, right, up
+  - name: test2
+    about: out of the room to the south, then east, then north again
+    walls:
+      - {name: w1, x_min: -3.0, x_max: 15.0, y_min: -13.0, y_max: -12.0}
+      - {name: w2, x_min: -3.0, x_max: -2.0, y_min: -12.0, y_max: -5.0}
+      - {name: w3, x_min: 14.0, x_max: 15.0, y_min: -12.0, y_max: 7.0}
+      - {name: w4, x_min: 2.0, x_max: 10.0, y_min: -8.0, y_max: -7.0}
+      - {name: w5, x_min: 2.0, x_max: 3.0, y_min: -7.0, y_max: -5.0}
+      - {name: w6, x_min: 9.0, x_max: 10.0, y_min: -7.0, y_max: 7.0}
+      - {name: w7, x_min: -5.0, x_max: -2.0, y_min: -5.0, y_max: -4.0}
+      - {name: w8, x_min: 2.0, x_max: 5.0, y_min: -5.0, y_max: -4.0}
+      - {name: w9, x_min: -5.0, x_max: -4.0, y_min: -4.0, y_max: 4.0}
+      - {name: w10, x_min: 4.0, x_max: 5.0, y_min: -4.0, y_max: 4.0}
+      - {name: w11, x_min: -5.0, x_max: 5.0, y_min: 4.0, y_max: 5.0}
+      - {name: w12, x_min: 9.0, x_max: 15.0, y_min: 7.0, y_max: 8.0}
+    path: [[0.0, 0.0, 2.0], [0.0, -10.0, 2.0], [12.0, -10.0, 2.0], [12.0, 4.0, 2.0]]
+    expect: GOAL_REACHED
+    timeout: 360
+
+  # left, up, left
+  - name: test3
+    about: out of the room to the west, then north, then west again
+    walls:
+      - {name: w1, x_min: -5.0, x_max: 5.0, y_min: -5.0, y_max: -4.0}
+      - {name: w2, x_min: -5.0, x_max: -4.0, y_min: -4.0, y_max: -3.0}
+      - {name: w3, x_min: 4.0, x_max: 5.0, y_min: -4.0, y_max: 4.0}
+      - {name: w4, x_min: -13.0, x_max: -4.0, y_min: -3.0, y_max: -2.0}
+      - {name: w5, x_min: -13.0, x_max: -12.0, y_min: -2.0, y_max: 6.0}
+      - {name: w6, x_min: -8.0, x_max: -4.0, y_min: 2.0, y_max: 3.0}
+      - {name: w7, x_min: -8.0, x_max: -7.0, y_min: 3.0, y_max: 11.0}
+      - {name: w8, x_min: -5.0, x_max: -4.0, y_min: 3.0, y_max: 4.0}
+      - {name: w9, x_min: -5.0, x_max: 5.0, y_min: 4.0, y_max: 5.0}
+      - {name: w10, x_min: -23.0, x_max: -12.0, y_min: 6.0, y_max: 7.0}
+      - {name: w11, x_min: -23.0, x_max: -22.0, y_min: 7.0, y_max: 11.0}
+      - {name: w12, x_min: -23.0, x_max: -7.0, y_min: 11.0, y_max: 12.0}
+    path: [[0.0, 0.0, 2.0], [-10.0, 0.0, 2.0], [-10.0, 9.0, 2.0], [-19.0, 9.0, 2.0]]
+    expect: GOAL_REACHED
+    timeout: 360
+
+  # right, up, right, down
+  - name: test4
+    about: east, north, east again, then a long way south
+    walls:
+      - {name: w1, x_min: 17.0, x_max: 23.0, y_min: -10.0, y_max: -9.0}
+      - {name: w2, x_min: 17.0, x_max: 18.0, y_min: -9.0, y_max: 6.0}
+      - {name: w3, x_min: 22.0, x_max: 23.0, y_min: -9.0, y_max: 11.0}
+      - {name: w4, x_min: -5.0, x_max: 5.0, y_min: -5.0, y_max: -4.0}
+      - {name: w5, x_min: -5.0, x_max: -4.0, y_min: -4.0, y_max: 4.0}
+      - {name: w6, x_min: 4.0, x_max: 5.0, y_min: -4.0, y_max: -3.0}
+      - {name: w7, x_min: 4.0, x_max: 13.0, y_min: -3.0, y_max: -2.0}
+      - {name: w8, x_min: 12.0, x_max: 13.0, y_min: -2.0, y_max: 6.0}
+      - {name: w9, x_min: 4.0, x_max: 8.0, y_min: 2.0, y_max: 3.0}
+      - {name: w10, x_min: 4.0, x_max: 5.0, y_min: 3.0, y_max: 4.0}
+      - {name: w11, x_min: 7.0, x_max: 8.0, y_min: 3.0, y_max: 11.0}
+      - {name: w12, x_min: -5.0, x_max: 5.0, y_min: 4.0, y_max: 5.0}
+      - {name: w13, x_min: 12.0, x_max: 18.0, y_min: 6.0, y_max: 7.0}
+      - {name: w14, x_min: 7.0, x_max: 23.0, y_min: 11.0, y_max: 12.0}
+    path: [[0.0, 0.0, 2.0], [10.0, 0.0, 2.0], [10.0, 9.0, 2.0], [20.0, 9.0, 2.0], [20.0, -6.0, 2.0]]
+    expect: GOAL_REACHED
+    timeout: 420
+
+  # up, right, down, right, up
+  - name: test5
+    about: north, east, south, east and north again, four turns
+    walls:
+      - {name: w1, x_min: -5.0, x_max: 5.0, y_min: -5.0, y_max: -4.0}
+      - {name: w2, x_min: 7.0, x_max: 22.0, y_min: -5.0, y_max: -4.0}
+      - {name: w3, x_min: -5.0, x_max: -4.0, y_min: -4.0, y_max: 4.0}
+      - {name: w4, x_min: 4.0, x_max: 5.0, y_min: -4.0, y_max: 4.0}
+      - {name: w5, x_min: 7.0, x_max: 8.0, y_min: -4.0, y_max: 7.0}
+      - {name: w6, x_min: 21.0, x_max: 22.0, y_min: -4.0, y_max: 11.0}
+      - {name: w7, x_min: 12.0, x_max: 17.0, y_min: 0.0, y_max: 1.0}
+      - {name: w8, x_min: 12.0, x_max: 13.0, y_min: 1.0, y_max: 12.0}
+      - {name: w9, x_min: 16.0, x_max: 17.0, y_min: 1.0, y_max: 11.0}
+      - {name: w10, x_min: -5.0, x_max: -2.0, y_min: 4.0, y_max: 5.0}
+      - {name: w11, x_min: 2.0, x_max: 5.0, y_min: 4.0, y_max: 5.0}
+      - {name: w12, x_min: -3.0, x_max: -2.0, y_min: 5.0, y_max: 12.0}
+      - {name: w13, x_min: 2.0, x_max: 3.0, y_min: 5.0, y_max: 7.0}
+      - {name: w14, x_min: 2.0, x_max: 8.0, y_min: 7.0, y_max: 8.0}
+      - {name: w15, x_min: 16.0, x_max: 22.0, y_min: 11.0, y_max: 12.0}
+      - {name: w16, x_min: -3.0, x_max: 13.0, y_min: 12.0, y_max: 13.0}
+    path: [[0.0, 0.0, 2.0], [0.0, 10.0, 2.0], [10.0, 10.0, 2.0], [10.0, -2.0, 2.0], [19.0, -2.0, 2.0], [19.0, 8.0, 2.0]]
+    expect: GOAL_REACHED
+    timeout: 480
+
+  # the route of test5 again in a corridor twice as wide, with two blocks in the middle of it
+  - name: test6
+    about: the route of test5 in a corridor 8 m wide, two blocks stand in the middle of it and the drone must go around each one
+    walls:
+      - {name: w1, x_min: 5.0, x_max: 24.0, y_min: -7.0, y_max: -6.0}
+      - {name: w2, x_min: 5.0, x_max: 6.0, y_min: -6.0, y_max: -5.0}
+      - {name: w3, x_min: 23.0, x_max: 24.0, y_min: -6.0, y_max: 11.0}
+      - {name: w4, x_min: -5.0, x_max: 6.0, y_min: -5.0, y_max: -4.0}
+      - {name: w5, x_min: -5.0, x_max: -4.0, y_min: -4.0, y_max: 14.0}
+      - {name: w6, x_min: 4.0, x_max: 6.0, y_min: -4.0, y_max: 6.0}
+      - {name: w7, x_min: 14.0, x_max: 15.0, y_min: 2.0, y_max: 11.0}
+      - {name: w8, x_min: 14.0, x_max: 24.0, y_min: 11.0, y_max: 12.0}
+      - {name: w9, x_min: 14.0, x_max: 15.0, y_min: 12.0, y_max: 14.0}
+      - {name: w10, x_min: -5.0, x_max: 15.0, y_min: 14.0, y_max: 15.0}
+      - {name: block_1, x_min: 9.25, x_max: 10.75, y_min: 4.5, y_max: 5.5}
+      - {name: block_2, x_min: 18.25, x_max: 19.75, y_min: 1.5, y_max: 2.5}
+    path: [[0.0, 0.0, 2.0], [0.0, 10.0, 2.0], [10.0, 10.0, 2.0], [10.0, -2.0, 2.0], [19.0, -2.0, 2.0], [19.0, 8.0, 2.0]]
+    expect: GOAL_REACHED
+    timeout: 600
+
+  # right, south-east at an angle, right
+  - name: test7
+    about: out of the room to the east, then south-east at an angle, then east again
+    walls:
+      - {name: room_south, x_min: -5.0, x_max: 5.0, y_min: -5.0, y_max: -4.0}
+      - {name: room_west, x_min: -5.0, x_max: -4.0, y_min: -4.0, y_max: 4.0}
+      - {name: room_north, x_min: -5.0, x_max: 5.0, y_min: 4.0, y_max: 5.0}
+      - {name: room_east_1, x_min: 4.0, x_max: 5.0, y_min: -4.0, y_max: -2.0}
+      - {name: room_east_2, x_min: 4.0, x_max: 5.0, y_min: 2.0, y_max: 4.0}
+      - {name: first_north, x_min: 4.0, x_max: 10.83, y_min: 2.0, y_max: 3.0}
+      - {name: first_south, x_min: 4.0, x_max: 8.17, y_min: -3.0, y_max: -2.0}
+      - {name: diagonal_north, x_min: 7.67, x_max: 19.99, y_min: -1.79, y_max: -0.79, angle: -45.0}
+      - {name: diagonal_south, x_min: 6.01, x_max: 18.33, y_min: -7.21, y_max: -6.21, angle: -45.0}
+      - {name: last_north, x_min: 17.83, x_max: 30.0, y_min: -6.0, y_max: -5.0}
+      - {name: last_south, x_min: 15.17, x_max: 30.0, y_min: -11.0, y_max: -10.0}
+      - {name: end, x_min: 29.0, x_max: 30.0, y_min: -10.0, y_max: -6.0}
+    path: [[0.0, 0.0, 2.0], [9.0, 0.0, 2.0], [17.0, -8.0, 2.0], [26.0, -8.0, 2.0]]
+    expect: GOAL_REACHED
+    timeout: 360
+
+  # straight east, a block is put on the path while the drone flies toward it
+  - name: test8
+    about: straight east in a corridor 8 m wide, a block appears on the path 3.5 m in front of the drone and the drone must go around it
+    walls:
+      - {name: south, x_min: -5.0, x_max: 25.0, y_min: -5.0, y_max: -4.0}
+      - {name: west, x_min: -5.0, x_max: -4.0, y_min: -4.0, y_max: 4.0}
+      - {name: north, x_min: -5.0, x_max: 25.0, y_min: 4.0, y_max: 5.0}
+      - {name: east, x_min: 24.0, x_max: 25.0, y_min: -4.0, y_max: 4.0}
+      - {name: block, x_min: 11.5, x_max: 12.5, y_min: -0.75, y_max: 0.75, appears_at: 3.5}
+    path: [[0.0, 0.0, 2.0], [20.0, 0.0, 2.0]]
+    expect: GOAL_REACHED
+    timeout: 300
+
+  # straight east into a corridor that is closed, the goal is behind its end
+  - name: test9
+    about: out of the room to the east into a corridor that is closed at its end, the goal lies behind the end wall and the drone must report BLOCKED
+    walls:
+      - {name: w1, x_min: -5.0, x_max: 5.0, y_min: -5.0, y_max: -4.0}
+      - {name: w2, x_min: -5.0, x_max: -4.0, y_min: -4.0, y_max: 4.0}
+      - {name: w3, x_min: 4.0, x_max: 5.0, y_min: -4.0, y_max: -3.0}
+      - {name: w4, x_min: 4.0, x_max: 14.0, y_min: -3.0, y_max: -2.0}
+      - {name: w5, x_min: 4.0, x_max: 14.0, y_min: 2.0, y_max: 3.0}
+      - {name: w6, x_min: 4.0, x_max: 5.0, y_min: 3.0, y_max: 4.0}
+      - {name: w7, x_min: -5.0, x_max: 5.0, y_min: 4.0, y_max: 5.0}
+      - {name: end, x_min: 13.0, x_max: 14.0, y_min: -2.0, y_max: 2.0}
+    path: [[0.0, 0.0, 2.0], [20.0, 0.0, 2.0]]
+    expect: BLOCKED
+    timeout: 600

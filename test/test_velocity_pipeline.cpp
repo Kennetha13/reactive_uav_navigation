@@ -1,6 +1,8 @@
 // Checks Vs, Vd, their intersection and candidate sampling. Plain asserts,
 // no ROS needed.
 
+// keep the asserts even in a Release build
+#undef NDEBUG
 #include <cassert>
 #include <cmath>
 #include <iostream>

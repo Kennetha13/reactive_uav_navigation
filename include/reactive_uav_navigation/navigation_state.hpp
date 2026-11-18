@@ -13,9 +13,10 @@
 //   WAITING_FOR_PATH   no global path received yet (or odometry not ready)
 //   FOLLOWING_PATH     a safe velocity was chosen and nothing is close
 //   AVOIDING_OBSTACLE  a safe velocity was chosen but an obstacle is within the
-//                      search range (Dist(v) of the chosen candidate < 1)
+//                      search range (Dist(v) of the chosen candidate < 1), or
+//                      the drone is side-stepping around an obstacle
 //   BLOCKED            safe progress is impossible, for either reason below
-//   GOAL_REACHED       within goal_tolerance of the last waypoint
+//   GOAL_REACHED       heading for the last waypoint and within goal_tolerance of it
 //
 // When is the drone BLOCKED?
 // --------------------------
@@ -30,12 +31,15 @@
 //      This catches the drone hovering or circling in front of an obstacle it
 //      cannot get around (a DWA local minimum, e.g. a wall across the path).
 //
-// While BLOCKED the caller must publish a zero velocity (hover) instead of the
-// chosen candidate, so the planner reports the condition rather than
-// generating unsafe commands. It leaves BLOCKED automatically:
-//   - reason 1 clears as soon as a safe velocity exists again;
-//   - reason 2 clears once the drone has made min_progress since it was blocked
-//     (for example after a teammate's global planner sends a new path).
+// What the caller does while BLOCKED (see mustHover()):
+//   - reason 1 (no safe velocity): publish a zero velocity (hover), so the
+//     planner reports the condition rather than generating unsafe commands.
+//     Turning on the spot is still allowed, it moves the drone toward nothing.
+//     It clears as soon as a safe velocity exists again. The time spent
+//     hovering is not counted as a stall.
+//   - reason 2 (no progress): keep flying the best safe velocity. Hovering
+//     would guarantee no progress, so the state could never clear. It clears
+//     once the drone has made min_progress, or when a new path arrives.
 //
 // This component has no ROS dependencies. The caller passes plain numbers in
 // and decides how to report the state (terminal log now, a ROS topic later).
@@ -102,8 +106,10 @@ struct NavInputs {
     double now = 0.0;                  // s, e.g. node->now().seconds()
     bool has_path = false;             // a global path is loaded and odometry is ready
     double distance_to_goal = 0.0;     // m, straight line from the drone to the LAST waypoint (goal check)
+    bool on_last_waypoint = true;      // the drone is heading for the LAST waypoint (goal check)
     double remaining_path_length = 0.0;// m, distance left ALONG the path (progress check);
                                        //    see remainingPathLength() below
+    bool detouring = false;            // a way around an obstacle is being searched (DetourPlanner)
     bool safe_velocity_found = false;  // BestCandidate::found from selectBestVelocity()
     double chosen_dist = 1.0;          // Dist(v) of the chosen candidate, in [0, 1]
 };

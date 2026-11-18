@@ -26,7 +26,19 @@
 //
 //     Distance(v) = max(0, (dist_min - R_drone) / (r_search - R_drone))
 //
-// Ray casting against the environment is provided by DepthRayProcessor.
+// Ray casting against the environment is provided by RayCast. The rays start
+// at the given position and are checked against the obstacle points passed to
+// setObstaclePoints() (made from the depth image by DepthRayProcessor).
+//
+// A camera only sees part of the world. After setVisibleSector() a direction
+// outside the camera's field of view is treated as blocked, not clear,
+// because nothing is known about it:
+//   - sideways: the yaw of the motion must be inside the horizontal view
+//   - up/down while moving forward: the climb angle must be inside the
+//     vertical view
+// Moving straight up or down is the one exception: the drone stays over the
+// same spot, so the rays look level ahead instead. This lets it correct its
+// altitude in place, and climbing is never scored as a way around an obstacle.
 //
 // Conventions
 // -----------
@@ -38,9 +50,10 @@
 #pragma once
 
 #include <cmath>
+#include <vector>
 #include <geometry_msgs/msg/vector3.hpp>
 
-#include "reactive_uav_navigation/depth_ray.hpp"
+#include "reactive_uav_navigation/ray_cast.hpp"
 
 namespace reactive_uav_navigation {
 
@@ -58,18 +71,30 @@ struct DistanceParams {
     double lambda_theta = 1.0;     // how strongly rays are shortened with vertical offset, in [0, 1]
     int numPsiBeams = 9;           // number of horizontal ray samples (more = finer, slower)
     int numThetaBeams = 5;         // number of vertical ray samples (more = finer, slower)
+    double keep_distance = 1.0;    // closer than this to any obstacle point lowers the clearance (m)
 
     // Throws std::invalid_argument if the configuration is unusable.
     void validate() const;
 };
 
-// Computes Dist(v) for candidate velocities. Owns the depth-ray processor
-// used to subscribe to depth images and camera information.
+// Computes Dist(v) for candidate velocities. Holds the configuration and the
+// latest obstacle points, so a single instance can be shared across planning
+// cycles.
 class DistanceFunction {
 public:
-    // The node must outlive this object. Throws std::invalid_argument if
-    // `params` fails DistanceParams::validate().
-    DistanceFunction(rclcpp::Node* node, const DistanceParams& params);
+    // Throws std::invalid_argument if `params` fails DistanceParams::validate().
+    explicit DistanceFunction(const DistanceParams& params);
+
+    // replaces the obstacle points the rays are cast against (world frame)
+    void setObstaclePoints(const std::vector<geometry_msgs::msg::Vector3>& points);
+
+    // tells the distance function what the camera can see: world yaw angles
+    // within half_angle of center_yaw, and pitch angles within half_pitch of
+    // level. Directions outside it count as blocked.
+    void setVisibleSector(double center_yaw, double half_angle, double half_pitch);
+
+    // true if the yaw angle is inside the visible sector, or no sector was set
+    bool isDirectionVisible(double yaw) const;
 
     // Returns the normalized clearance term Distance(v) in [0, 1] for one
     // candidate velocity.
@@ -82,6 +107,20 @@ public:
     double computeDistance(const geometry_msgs::msg::Vector3& position,
                            double headingYaw,
                            double headingPitch) const;
+
+    // Same as computeDistance(), but an obstacle further away than `limit`
+    // (m) is ignored. Used with the distance to the waypoint as the limit: an
+    // obstacle behind the waypoint must not keep the drone from reaching it.
+    double computeDistanceUpTo(const geometry_msgs::msg::Vector3& position,
+                               double headingYaw,
+                               double headingPitch,
+                               double limit) const;
+
+    // Clearance around a position in every direction, in [0, 1]: 1 when no
+    // obstacle point is within keep_distance of it, 0 when one is within the
+    // drone's radius. The rays only look where the drone is going; this also
+    // counts an obstacle beside it, such as a corner it is turning around.
+    double computeProximity(const geometry_msgs::msg::Vector3& position) const;
 
     // Same as above, but takes the candidate velocity as Cartesian components
     // and derives yaw and pitch internally. Convenient when the components
@@ -96,7 +135,8 @@ public:
 
     // Returns dist_min: the shortest obstacle hit distance (m) over all
     // sampled rays, before subtracting R_drone or normalizing. If no ray hits
-    // anything within its search length, returns r_search.
+    // anything within its search length, returns r_search. If the direction
+    // is outside the visible sector, returns 0 (treated as blocked).
     //
     // Public so callers can log the unnormalized clearance, e.g. for
     // navigation metrics or debugging. Arguments are as for computeDistance().
@@ -106,7 +146,13 @@ public:
 
 private:
     DistanceParams params_;
-    DepthRayProcessor rayCaster_;
+    RayCast rayCaster_;
+
+    // what the camera can see, see setVisibleSector()
+    bool has_visible_sector_ = false;
+    double visible_center_yaw_ = 0.0;
+    double visible_half_angle_ = 0.0;
+    double visible_half_pitch_ = 0.0;
 
     // Returns the angular offset of sample `index` out of `count`, spaced
     // evenly over [-maxAngle, +maxAngle]. A single sample is the center ray

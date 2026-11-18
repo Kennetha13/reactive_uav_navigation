@@ -5,6 +5,7 @@
 #include "rclcpp/rclcpp.hpp" // The client libraries for ROS 2
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/point.hpp"
+#include "geometry_msgs/msg/quaternion.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 
 class DroneState { 
@@ -14,6 +15,7 @@ class DroneState {
 
             geometry_msgs::msg::Point get_current_position() const; // Drone's current position
             geometry_msgs::msg::Twist get_current_velocity() const; // Drone's latest linear and angular velocity
+            geometry_msgs::msg::Quaternion get_orientation() const; // Drone's latest orientation as a quaternion
 
             double get_roll() const; // Latest roll angle in radians
             double get_pitch() const; // Latest pitch angle in radians
@@ -27,6 +29,7 @@ class DroneState {
 
             geometry_msgs::msg::Point current_position_; // Stores the current position of the drone
             geometry_msgs::msg::Twist current_velocity_; // Stores the current velocity of the drone;
+            geometry_msgs::msg::Quaternion current_orientation_; // Stores the current orientation of the drone
 
             // Stores roll, pitch, and yaw in radians
             double roll_{0.0};

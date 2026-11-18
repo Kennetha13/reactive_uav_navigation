@@ -1,6 +1,5 @@
-// Test-only stand-in for distance_function.hpp. The real one needs ROS and PCL
-// for ray casting; this one models a single wall at x = wall_x so computeVr can
-// be tested without them. Only the part AdmissibleVelocities uses is provided,
+// Test-only stand-in for distance_function.hpp. It models a single wall at
+// x = wall_x so computeVr can be tested with exact, known distances. Only the part AdmissibleVelocities uses is provided,
 // so it must be kept in step with DistanceFunction::computeDistMin().
 #pragma once
 

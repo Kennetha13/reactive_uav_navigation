@@ -39,6 +39,12 @@ geometry_msgs::msg::Twist DroneState::get_current_velocity() const{
     return current_velocity_; // Return copy of current velocity
 }
 
+geometry_msgs::msg::Quaternion DroneState::get_orientation() const{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    return current_orientation_; // Return copy of current orientation
+}
+
 double DroneState::get_roll() const{ // Returns roll in radians
     std::lock_guard<std::mutex> lock(state_mutex_);
 
@@ -70,6 +76,7 @@ void DroneState::odometry_listener(const nav_msgs::msg::Odometry::SharedPtr mess
 
     current_position_ = message->pose.pose.position; // Save the current position
     current_velocity_ = message->twist.twist; // Save the current linear and angular velocity
+    current_orientation_ = quaternion; // Save the current orientation
 
     roll_ = quaternion_to_roll(quaternion.x, quaternion.y, quaternion.z, quaternion.w); // Converting quaternion to roll
     pitch_ = quaternion_to_pitch(quaternion.x, quaternion.y, quaternion.z, quaternion.w); // Converting quaternion to pitch

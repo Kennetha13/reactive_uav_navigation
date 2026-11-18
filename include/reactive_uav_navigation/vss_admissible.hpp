@@ -58,7 +58,8 @@ namespace reactive_uav_navigation {
 struct AdmissibleParams {
     double a_max = 1.0;          // maximum deceleration used for braking (m/s^2); not given in the paper
     double dt = VELOCITY_HORIZON;  // prediction time-step (s); 10x the control period, shared with Vd
-    double safety_margin = 0.0;  // extra clearance subtracted from d_col (m); not in the paper, 0 matches eq. 9
+    double drone_radius = 0.3;   // radius of the drone, subtracted from d_col (m)
+    double safety_margin = 0.0;  // extra clearance subtracted from d_col (m); not in the paper
 
     // Throws std::invalid_argument if the configuration is unusable.
     void validate() const;

@@ -5,27 +5,19 @@
 //     G(v) = alpha * Heading(v) + beta * Dist(v) + gamma * Vel(v)
 //     v*   = argmax over candidates of G(v)
 //
-// This header only combines the three terms and picks the best candidate.
+// ObjectiveFunction combines the three terms and picks the best candidate.
 // The terms themselves are computed elsewhere:
-//   Heading(v)  -> heading function (not yet in the repo)
-//   Dist(v)     -> DistanceFunction::computeDistance()   (distance_function.hpp)
-//   Vel(v)      -> velocity()                              (velocity.cpp)
-// Each term must already be normalized to [0, 1].
+//   Heading(v)  -> HeadingFunction::computeHeading()      (heading_function.hpp)
+//   Dist(v)     -> DistanceFunction::computeDistance()    (distance_function.hpp)
+//   Vel(v)      -> VelocityFunction::computeVelocity()    (velocity_function.hpp)
 //
-// Typical use in ReactiveNavigator::control_loop():
+// Use in ReactiveNavigator::control_loop(), once per control cycle:
 //
-//     std::vector<Candidate> candidates;
-//     for (each candidate velocity v from the dynamic window) {
-//         Candidate c;
-//         c.vx = ...; c.vy = ...; c.vz = ...; c.wz = ...;
-//         c.heading = heading(...);
-//         c.dist    = distanceCalc.computeDistance(...);
-//         c.vel     = velocity(...);
-//         candidates.push_back(c);
-//     }
-//     BestCandidate best = selectBestVelocity(candidates, weights);
-//     if (!best.found) { /* BLOCKED: publish zero velocity */ }
-//     else { cmd.linear.x = best.candidate.vx; ... }
+//     objective_function_->setGoal(target);
+//     objective_function_->setMaxSpeed(max forward speed of Vs);
+//     BestVelocity best = objective_function_->selectBest(vr);
+//     if (!best.can_move) { /* BLOCKED: publish zero velocity */ }
+//     else { /* publish best.velocity */ }
 //
 // Conventions match distance_function.hpp: velocities in m/s, yaw rate in rad/s.
 
@@ -35,7 +27,6 @@
 #include <memory>
 #include <vector>
 
-#include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/point.hpp>
 
 #include "reactive_uav_navigation/common.hpp"
@@ -59,13 +50,20 @@ struct ObjectiveScores {
     double total = 0.0;     // G(v) = alpha*heading + beta*distance + gamma*velocity
 };
 
+// The winner of one control cycle.
+struct BestVelocity {
+    bool found = false;         // false when there was no candidate to choose from
+    bool can_move = false;      // false when every safe candidate only hovers or turns on the spot
+    CandidateVelocity velocity; // the chosen [vx, vz, wz]
+    ObjectiveScores scores;     // its Heading, Dist and Vel scores and G(v)
+};
+
 class ObjectiveFunction
 {
 public:
 
-    // Constructor accepts the ROS2 node and existing drone state.
+    // Constructor accepts the existing drone state.
     ObjectiveFunction(
-        rclcpp::Node* node,
         const DroneState& drone_state,
         const geometry_msgs::msg::Point& goal,
         DistanceFunction& distance_function
@@ -76,6 +74,16 @@ public:
     ~ObjectiveFunction();
     
     void setGoal(const geometry_msgs::msg::Point& goal);
+
+    // Sets the largest forward speed a candidate can have (the Vs limit),
+    // used to normalize Vel(v).
+    void setMaxSpeed(double vel_max);
+
+    // Scores every candidate and returns the one with the highest G(v).
+    // Candidates with a NaN score are skipped; ties go to the first.
+    // If the waypoint is behind the drone or outside the camera's view,
+    // returns a turn on the spot toward it instead.
+    BestVelocity selectBest(const std::vector<CandidateVelocity>& candidates);
 
     // Calculates the maximum vertical error for the candidate set.
     void prepareCandidates(
@@ -91,12 +99,17 @@ public:
 
 private:
 
+    // +1 if the drone must first turn left on the spot because the waypoint
+    // is behind it or outside the camera's view, -1 for a right turn, 0 if
+    // the waypoint is in front and in view.
+    double turnDirectionToGoal() const;
+
     // Scoring functions
     std::unique_ptr<HeadingFunction> heading_function_;
     std::unique_ptr<VelocityFunction> velocity_function_;
 
-    // Shared with the velocity admissibility check so the depth processor and
-    // its subscriptions are initialized only once.
+    // Shared with the velocity admissibility check so both use the same
+    // obstacle points.
     DistanceFunction& distance_function_;
 
     // Reference to existing drone state
@@ -109,6 +122,12 @@ private:
 
     // Used to normalize vertical heading scores
     double max_z_error_ = 0.0;
+
+    // Used to normalize velocity scores
+    double vel_max_ = 0.3;
+
+    // The waypoint the drone is heading for
+    geometry_msgs::msg::Point goal_;
 };
 
 } // namespace reactive_uav_navigation

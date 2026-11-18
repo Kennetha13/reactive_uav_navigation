@@ -1,8 +1,8 @@
-- header:
+# A test path for the navigator. Publish it with:
+#   ros2 topic pub --once /planned_path nav_msgs/msg/Path "$(cat waypoints.yml)"
+header:
   frame_id: map
-
 poses:
-  
 - header:
     frame_id: map
   pose:
@@ -15,8 +15,6 @@ poses:
       y: 0.0
       z: 0.0
       w: 1.0
-
-  
 - header:
     frame_id: map
   pose:
@@ -29,8 +27,6 @@ poses:
       y: 0.0
       z: 0.0
       w: 1.0
-
-  
 - header:
     frame_id: map
   pose:
