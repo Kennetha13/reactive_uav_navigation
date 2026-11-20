@@ -93,7 +93,9 @@ NavState NavigationStateMachine::decide(const NavInputs& in) {
     if (state_ == NavState::GOAL_REACHED) {
         return NavState::GOAL_REACHED;
     }
-    if (in.distance_to_goal < params_.goal_tolerance) {
+    // only the last waypoint counts, so a path that passes near its own end
+    // (a loop) is not finished early
+    if (in.on_last_waypoint && in.distance_to_goal < params_.goal_tolerance) {
         return NavState::GOAL_REACHED;
     }
 
@@ -101,8 +103,17 @@ NavState NavigationStateMachine::decide(const NavInputs& in) {
 
     // Blocked reason 1: nothing safe to do.
     if (!in.safe_velocity_found) {
+        // the drone is told to hover here, so this time is not counted as a stall
+        last_progress_time_ = in.now;
         reason_ = BlockedReason::NO_SAFE_VELOCITY;
         return NavState::BLOCKED;
+    }
+
+    // A way around an obstacle is being searched. The drone leaves the path
+    // on purpose, so the time this takes does not count as a stall.
+    if (in.detouring) {
+        last_progress_time_ = in.now;
+        return NavState::AVOIDING_OBSTACLE;
     }
 
     // Blocked reason 2: safe velocities exist but we are getting nowhere.

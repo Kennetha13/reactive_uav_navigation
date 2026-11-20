@@ -2,6 +2,8 @@
 // x = wall_x stands in for the distance function (see test/fake), so no ROS is
 // needed.
 
+// keep the asserts even in a Release build
+#undef NDEBUG
 #include <cassert>
 #include <cmath>
 #include <iostream>

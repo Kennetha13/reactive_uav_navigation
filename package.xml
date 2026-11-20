@@ -3,7 +3,7 @@
 <package format="3">
   <name>reactive_uav_navigation</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Reactive local navigation for a UAV: follows a global path and avoids obstacles with DWA-3D</description>
   <maintainer email="theodenmelgar@gmail.com">theodenmelgar</maintainer>
   <license>TODO: License declaration</license>
 
@@ -13,7 +13,6 @@
 	<depend>nav_msgs</depend>
 	<depend>geometry_msgs</depend>
 	<depend>sensor_msgs</depend>
-	<depend>pcl_conversions</depend>
 	<depend>std_msgs</depend>
     <depend>tf2</depend>
     <depend>mavros_msgs</depend>

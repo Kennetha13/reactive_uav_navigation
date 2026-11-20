@@ -30,41 +30,9 @@
 //
 // How the rest of the codebase uses it
 // ------------------------------------
-// Each element becomes one `Candidate` for selectBestVelocity()
-// (objective_function.hpp):
-//
-//     // once, at startup (reused every cycle), like DroneState
-//     VssCollector collector{this};             // this = the rclcpp::Node
-//
-//     // every control cycle
-//     DronePose pose{position, yaw};            // from DroneState (ENU world frame)
-//     CandidateVelocity current{vx, vz, wz};    // last command or measured velocity
-//     std::vector<CandidateVelocity> vr =
-//         collector.computeVr(distanceFunction, current, pose);
-//
-//     const double maxZError = heading.getMaxZError(vr);   // heading z-normalizer
-//
-//     std::vector<Candidate> scored;
-//     for (const CandidateVelocity& v : vr) {
-//         Candidate c;
-//         c.vx = v.vx;  c.vy = 0.0;                     // no lateral velocity
-//         c.vz = v.vz;  c.wz = v.wz;
-//         c.heading = heading.computeHeading(v, maxZError)
-//         c.dist    = Dist(v): the pose after VELOCITY_HORIZON is
-//                     collector.admissible().predictPose(pose, v); then
-//                     distanceFunction.computeDistance(predicted.position,
-//                         predicted.yaw, atan2(v.vz, v.vx))
-//         c.vel     = Vel(v): compute head_psi = heading.computeYawHeading(v)
-//                     first, then velocityFunction.computeVelocity(
-//                         Vector3{v.vx, 0, v.vz},
-//                         heading.K_z, heading.K_yaw, head_psi)
-//         scored.push_back(c);
-//     }
-//     BestCandidate best = selectBestVelocity(scored, weights);
-//     if (!best.found) { /* BLOCKED: publish zero velocity */ }
-//     else             { /* command = {best.candidate.vx, vz, wz} */ }
-//
-
+// ReactiveNavigator::control_loop() calls computeVr() once per control cycle
+// and passes the result to ObjectiveFunction::selectBest()
+// (objective_function.hpp), which scores every element with G(v).
 
 #pragma once
 

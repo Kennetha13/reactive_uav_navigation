@@ -21,8 +21,8 @@ namespace reactive_uav_navigation {
 // node does not have it yet.
 double rosDoubleParam(rclcpp::Node* node, const std::string& name, double default_value);
 
-// Reads PX4 parameters through the MAVROS service /mavros/param/get, the same
-// way VelocityFunction reads MPC_XY_VEL_MAX. A 1 s timer retries each
+// Reads PX4 parameters through MAVROS, which offers them as ROS parameters of
+// its /mavros/param node (service /mavros/param/get_parameters). A 1 s timer retries each
 // parameter until MAVROS answers with a positive value, then reports it once.
 // The node must outlive the reader and be spun.
 class Px4ParamReader {
